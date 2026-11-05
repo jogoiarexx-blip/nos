@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#07151b">
+  <meta name="description" content="NÓS: mensageiro offline de código aberto e rádio PTT por Wi-Fi local em um só aplicativo Android.">
+  <title>NÓS — Conexão que permanece</title>
+  <style>
+    :root{color-scheme:dark;--ink:#ebf9fc;--muted:#a3bbc0;--line:#24444d;--cyan:#06e0f5;--green:#8dff21;--bg:#061117}
+    *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:radial-gradient(circle at 17% -13%,#075b6b65,transparent 38%),radial-gradient(circle at 94% 11%,#145d2460,transparent 29%),var(--bg);color:var(--ink);font:16px/1.55 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+    a{color:inherit;text-decoration:none}a:focus-visible{outline:2px solid var(--green);outline-offset:5px}.wrap{width:min(1080px,calc(100% - 40px));margin:auto}header{height:76px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #ffffff15}
+    .brand{font-size:1.4rem;font-weight:900;letter-spacing:.04em}.brand span{color:var(--green)}nav{display:flex;gap:24px;align-items:center;font-size:.94rem;color:var(--muted)}nav a:hover,.muted a:hover{color:var(--cyan)}
+    .hero{display:grid;grid-template-columns:1.05fr .95fr;gap:36px;align-items:center;padding:90px 0 85px}.eyebrow{display:inline-flex;gap:10px;align-items:center;font-size:.73rem;letter-spacing:.15em;font-weight:750;text-transform:uppercase;color:#aaf5b3}
+    .dot{height:9px;width:9px;border-radius:50%;background:var(--green);box-shadow:0 0 18px var(--green)}h1{font-size:clamp(2.7rem,5.8vw,5rem);line-height:1.09;letter-spacing:-.06em;margin:18px 0 22px;font-weight:850}h1 em{color:var(--cyan);font-style:normal}p{color:var(--muted);margin:0 0 23px;max-width:60ch}
+    .actions{display:flex;gap:12px;flex-wrap:wrap;margin-top:30px}.button{display:inline-flex;align-items:center;justify-content:center;min-height:48px;border-radius:11px;padding:12px 21px;border:1px solid var(--line);font-weight:720;font-size:.94rem}.button.primary{color:#042329;border-color:var(--cyan);background:linear-gradient(90deg,var(--cyan),var(--green))}.button:hover{transform:translateY(-1px);filter:brightness(1.08)}
+    .art{display:flex;justify-content:center;align-items:center;position:relative;min-height:380px}.art:before{content:"";position:absolute;inset:12% 13%;background:radial-gradient(ellipse,#00ffd035,transparent 66%);filter:blur(24px)}.art img{position:relative;width:min(100%,490px);height:auto;filter:drop-shadow(0 0 34px #00daeb36);object-fit:contain}
+    .meta{display:flex;gap:22px;flex-wrap:wrap;margin-top:36px;color:#8cb2ba;font-size:.84rem}.meta strong{color:#d4f9ed;font-weight:700}
+    .section{padding:65px 0;border-top:1px solid #ffffff15}.section h2{margin:0 0 12px;font-size:clamp(1.75rem,3vw,2.4rem);letter-spacing:-.04em}.intro{max-width:690px}.features{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;margin-top:34px}.feature{border:1px solid var(--line);border-radius:20px;padding:27px;background:linear-gradient(140deg,#0b2730b0,#091920a3)}.feature small{color:#67d7e2;font-weight:800;letter-spacing:.12em;text-transform:uppercase}.feature h3{font-size:1.42rem;letter-spacing:-.025em;margin:10px 0}.feature p{font-size:.95rem;margin-bottom:0}
+    .spec{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:28px}.spec>div{padding:20px;border-top:1px solid #31555e}.spec strong{display:block;font-size:1.07rem}.spec span{color:var(--muted);font-size:.9rem}
+    .notice{margin-top:28px;border-left:3px solid #43cd96;padding:13px 18px;background:#10352f4a;border-radius:0 8px 8px 0;color:#c4dfdd;font-size:.9rem}
+    footer{border-top:1px solid #ffffff15;padding:30px 0 48px;display:flex;align-items:center;justify-content:space-between;gap:20px;color:#809ca5;font-size:.85rem}
+    @media(max-width:800px){nav{gap:14px;font-size:.87rem}.hero{grid-template-columns:1fr;padding:56px 0 45px}.art{min-height:200px;order:-1}.art img{max-width:310px}.features{grid-template-columns:1fr}.spec{grid-template-columns:1fr;gap:2px}.meta{margin-top:25px}footer{display:block}}
+    @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}.button:hover{transform:none}}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header><a class="brand" href="#inicio" aria-label="NÓS, início">NÓ<span>S</span></a>
+      <nav aria-label="Principal"><a href="#modos">Modos</a><a href="#tecnologia">Tecnologia</a><a href="https://github.com/jogoiarexx-blip/nos">Código-fonte</a></nav>
+    </header>
+    <main>
+      <section class="hero" id="inicio">
+        <div>
+          <span class="eyebrow"><span class="dot" aria-hidden="true"></span> Projeto Android • Open source</span>
+          <h1>Conectados,<br><em>mesmo offline.</em></h1>
+          <p>O NÓS reúne um mensageiro privado e uma experiência de rádio walkie-talkie. Duas formas de conversar, no mesmo aplicativo — até quando não há internet, desde que os aparelhos estejam ao alcance da rede compatível.</p>
+          <div class="actions">
+            <a class="button primary" href="https://github.com/jogoiarexx-blip/nos">Explorar o projeto</a>
+            <a class="button" href="https://github.com/jogoiarexx-blip/nos/actions">Ver compilação do APK</a>
+          </div>
+          <div class="meta"><span><strong>Android nativo</strong> · Kotlin</span><span><strong>Fonte aberta</strong> · GPL</span><span><strong>REV6</strong> · versão experimental</span></div>
+        </div>
+        <div class="art"><img src="app/src/main/res/drawable-nodpi/nos_wordmark.png" alt="Logo neon do NÓS: rede de pessoas, mensagens e rádio" width="960" height="859"></div>
+      </section>
+      <section class="section" id="modos">
+        <h2>Um aplicativo. Dois modos.</h2>
+        <p class="intro">Escolha a maneira de se comunicar sem perder a experiência de mensagens e áudios gravados.</p>
+        <div class="features">
+          <article class="feature"><small>01 / Conversas</small><h3>Mensagens</h3><p>Conversas individuais e grupos, texto, arquivos, fotografias e notas de voz gravadas, aproveitando a tecnologia de comunicação Mesh do Knit.</p></article>
+          <article class="feature"><small>02 / Transmissão</small><h3>Rádio ao vivo</h3><p>Canais de voz com botão de apertar para falar e senha compartilhada, usando Wi-Fi local ou hotspot compatível — sem exigir internet.</p></article>
+        </div>
+      </section>
+      <section class="section" id="tecnologia">
+        <h2>O que significa funcionar offline?</h2>
+        <p>Bluetooth e Wi-Fi usam ondas de rádio. No NÓS, as mensagens Mesh e os canais de voz ao vivo são sistemas separados, com alcances e requisitos diferentes.</p>
+        <div class="spec">
+          <div><strong>Mensagens Mesh</strong><span>Dependem de dispositivos e rotas compatíveis próximos; podem ser entregues depois.</span></div>
+          <div><strong>Canal ao vivo LAN</strong><span>Exige aparelhos na mesma rede Wi-Fi local, com multicast/broadcast funcionando.</span></div>
+          <div><strong>Rádios de longo alcance</strong><span>Exigem equipamento de rádio externo; não são fornecidos pelo PTT LAN da REV6.</span></div>
+        </div>
+        <div class="notice">A REV6 está em validação. A publicação do código-fonte não equivale à certificação de chamadas em aparelhos reais. Acompanhe o APK de teste pelo GitHub Actions.</div>
+      </section>
+    </main>
+    <footer><span>© 2026 NÓS · Baseado no projeto open source Knit.</span><a href="https://github.com/jogoiarexx-blip/nos">GitHub</a></footer>
+  </div>
+</body>
+</html>
