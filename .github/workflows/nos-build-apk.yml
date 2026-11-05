@@ -2,8 +2,16 @@ name: NÓS Android — Compilar APK de teste
 
 on:
   push:
+    branches: [main]
     paths:
       - '.github/workflows/nos-build-apk.yml'
+      - 'app/**'
+      - 'gradle/**'
+      - 'build.gradle.kts'
+      - 'settings.gradle.kts'
+      - 'gradle.properties'
+      - 'config/**'
+      - 'third_party/**'
   workflow_dispatch:
 
 permissions:
@@ -12,7 +20,7 @@ permissions:
 jobs:
   apk-debug:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
       - name: Checkout NÓS REV6
         uses: actions/checkout@v4
