@@ -1,0 +1,55 @@
+name: NÓS Android — Compilar APK de teste
+
+on:
+  push:
+    paths:
+      - '.github/workflows/nos-build-apk.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  apk-debug:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout NÓS REV6
+        uses: actions/checkout@v4
+      - name: Configurar Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Configurar Android SDK
+        uses: android-actions/setup-android@v4
+        with:
+          packages: platform-tools
+      - name: Configurar cache Gradle
+        uses: gradle/actions/setup-gradle@v4
+      - name: Verificar estrutura NÓS
+        run: |
+          test -f app/src/main/java/app/getknit/knit/ui/radiohub/LanRadioEngine.kt
+          test -f app/src/main/java/app/getknit/knit/ui/radiohub/LanRadioWire.kt
+          test -f app/src/main/res/drawable-nodpi/nos_wordmark.png
+          chmod +x ./gradlew
+      - name: Compilar APK Android debug
+        run: ./gradlew :app:assembleDebug --stacktrace --console=plain
+      - name: Anexar APK debug para teste
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: NOS-REV6-APK-DEBUG
+          path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 30
+      - name: Executar testes unitários Android
+        run: ./gradlew :app:testDebugUnitTest --stacktrace --console=plain
+      - name: Anexar relatório de testes
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: NOS-REV6-UNIT-TEST-REPORT
+          path: app/build/reports/tests/testDebugUnitTest/
+          if-no-files-found: ignore
+          retention-days: 30
