@@ -327,7 +327,6 @@ private fun ContactRow(
             contentDescription = null,
             tint = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        }
     }
 }
 
