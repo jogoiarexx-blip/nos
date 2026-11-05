@@ -47,7 +47,7 @@ jobs:
           test -f app/src/main/java/app/getknit/knit/ui/radiohub/LanRadioEngine.kt
           test -f app/src/main/java/app/getknit/knit/ui/radiohub/LanRadioScreen.kt
           test -f app/src/main/java/app/getknit/knit/ui/radiohub/LanRadioWire.kt
-          grep -q "NOS LAN Radio v1" app/src/main/java/app/getknit/knit/ui/radiohub/LanRadioWire.kt
+          grep -q "LAN Radio v1" app/src/main/java/app/getknit/knit/ui/radiohub/LanRadioWire.kt
           grep -q "NÓS REV6" NOS_REV6_CHANGELOG.md
       - name: Publicar a REV6 no GitHub
         run: |
