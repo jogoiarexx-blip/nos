@@ -3,7 +3,7 @@ package app.getknit.knit.ui.radiohub
 import android.content.Context
 import android.content.pm.PackageManager
 import android.media.AudioFormat
-import android.media.AudioManager
+import android.media.AudioAttributes
 import android.media.AudioRecord
 import android.media.AudioTrack
 import android.media.MediaRecorder
@@ -100,14 +100,23 @@ internal class LanRadioEngine(context: Context) {
                 key = derived
                 val minTrack = AudioTrack.getMinBufferSize(16_000, AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_16BIT)
                 if (minTrack <= 0) error("Audio output unsupported")
-                val player = AudioTrack(
-                    AudioManager.STREAM_MUSIC,
-                    16_000,
-                    AudioFormat.CHANNEL_OUT_MONO,
-                    AudioFormat.ENCODING_PCM_16BIT,
-                    max(minTrack * 2, LanRadioWire.PCM_BYTES * 6),
-                    AudioTrack.MODE_STREAM,
-                )
+                val player = AudioTrack.Builder()
+                    .setAudioAttributes(
+                        AudioAttributes.Builder()
+                            .setUsage(AudioAttributes.USAGE_MEDIA)
+                            .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                            .build(),
+                    )
+                    .setAudioFormat(
+                        AudioFormat.Builder()
+                            .setSampleRate(16_000)
+                            .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
+                            .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                            .build(),
+                    )
+                    .setBufferSizeInBytes(max(minTrack * 2, LanRadioWire.PCM_BYTES * 6))
+                    .setTransferMode(AudioTrack.MODE_STREAM)
+                    .build()
                 if (player.state != AudioTrack.STATE_INITIALIZED) {
                     player.release()
                     error("Audio output unavailable")

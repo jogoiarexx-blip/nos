@@ -47,7 +47,7 @@ import androidx.compose.material.icons.filled.ClosedCaption
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MicOff
 import androidx.compose.material.icons.filled.HourglassTop
-import androidx.compose.material.icons.filled.VolumeUp
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.outlined.ClosedCaptionDisabled
 import androidx.compose.material.icons.outlined.Cloud
 import androidx.compose.material.icons.outlined.Hub
@@ -977,7 +977,7 @@ private fun RadioPttStatus(
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             val icon = when (mode) {
-                RadioPttMode.RECEIVING -> Icons.Filled.VolumeUp
+                RadioPttMode.RECEIVING -> Icons.AutoMirrored.Filled.VolumeUp
                 RadioPttMode.SENDING -> Icons.Filled.HourglassTop
                 RadioPttMode.RECORDING -> Icons.Filled.Mic
                 else -> Icons.Outlined.Hub
