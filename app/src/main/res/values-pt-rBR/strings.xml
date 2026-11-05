@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- First iteration: the new radio experience. Other Knit strings fall back to English. -->
+    <string name="app_name">NÓS</string>
+    <string name="radio_hub_title">NÓS · Rádio</string>
+    <string name="radio_hub_open">Abrir modo rádio</string>
+    <string name="radio_hub_back">Voltar</string>
+    <string name="radio_hub_mesh_status">Rede Mesh próxima</string>
+    <string name="radio_hub_stopped">Rede Mesh desligada</string>
+    <string name="radio_hub_paused">Rede Mesh pausada</string>
+    <string name="radio_hub_radios_off">Bluetooth e Wi-Fi indisponíveis</string>
+    <string name="radio_hub_loading">Verificando a conexão…</string>
+    <string name="radio_hub_searching">Nenhum aparelho conectado. Procurando celulares próximos…</string>
+    <plurals name="radio_hub_neighbors">
+        <item quantity="one">%d aparelho próximo conectado</item>
+        <item quantity="other">%d aparelhos próximos conectados</item>
+    </plurals>
+    <string name="radio_hub_offline_explanation">Usa Bluetooth e Wi-Fi Aware entre celulares próximos. Não exige internet. O alcance e a entrega dependem dos aparelhos conectados.</string>
+    <string name="radio_hub_start_mesh">Ligar rede Mesh</string>
+    <string name="radio_hub_resume_mesh">Retomar rede Mesh</string>
+    <string name="radio_hub_network_details">Ver detalhes da rede</string>
+    <string name="radio_hub_walkie_title">Walkie-talkie com contato</string>
+    <string name="radio_hub_walkie_instructions">Escolha um contato e toque em Chamar no rádio. Quando a chamada Mesh conectar, segure o botão do microfone para falar.</string>
+    <string name="radio_hub_walkie_limits">A voz depende de aparelhos compatíveis. Ainda não há canal público de voz ao vivo: a sala Próximos abaixo é para mensagens.</string>
+    <string name="radio_hub_pick_contact">Escolher contato</string>
+    <string name="radio_hub_nearby_messages">Abrir sala de mensagens Próximos</string>
+    <string name="radio_hub_recent_people">Conversas recentes</string>
+    <string name="radio_hub_empty_people">Ainda não há conversas privadas. Escolha um contato para começar.</string>
+    <string name="radio_hub_open_chat">Mensagens</string>
+    <string name="your_mesh_title">Sua rede Mesh</string>
+    <string name="chat_more_options">Mais opções</string>
+    <string name="contacts_new_message">Nova mensagem</string>
+    <string name="add_contact_title">Adicionar contato</string>
+    <string name="settings_title">Configurações</string>
+    <string name="search_title">Pesquisar</string>
+    <string name="diagnostics_title">Diagnóstico</string>
+    <string name="radio_hub_call_peer">Chamar no rádio</string>
+    <string name="radio_hub_call_started">Chamada Mesh iniciada. Segure para falar após conectar.</string>
+    <string name="radio_hub_call_blocked">Este contato está bloqueado. Desbloqueie antes de chamar.</string>
+    <string name="radio_hub_call_invalid">Não existe um contato privado válido para esta chamada.</string>
+    <string name="radio_hub_call_disabled">O walkie-talkie não está disponível nesta versão do aplicativo.</string>
+    <string name="radio_hub_call_failed">Não foi possível iniciar a chamada no rádio. Tente novamente.</string>
+    <!-- REV3: walkie voice states are actual engine/link states, never simulated. -->
+    <string name="radio_ptt_end_call">Encerrar</string>
+    <string name="radio_ptt_checking_route">Verificando a rota de rádio…</string>
+    <string name="radio_ptt_no_route">Sem conexão com este contato</string>
+    <string name="radio_ptt_ready">Rádio pronto. Segure para falar.</string>
+    <string name="radio_ptt_recording">Gravando e transmitindo…</string>
+    <string name="radio_ptt_receiving">%1$s está falando…</string>
+    <string name="radio_ptt_sending">Enviando os últimos trechos de áudio…</string>
+    <string name="radio_ptt_sent_to_network">Áudio enviado à rede; entrega não confirmada</string>
+    <string name="radio_ptt_too_short">Muito curto. Segure o botão por mais tempo.</string>
+    <string name="radio_ptt_mic_busy">Microfone indisponível. Verifique as permissões.</string>
+    <string name="radio_ptt_send_failed">Áudio não enviado. Tente novamente quando houver conexão.</string>
+    <string name="radio_ptt_elapsed">Falando %1$d:%2$02d</string>
+    <string name="radio_ptt_link_missing">Sem rota de rádio até %1$s; procurando conexão…</string>
+    <string name="radio_ptt_link_relay">Usando servidor de internet para alcançar %1$s; não é offline.</string>
+    <string name="radio_ptt_link_mesh">Alcançando %1$s por outros celulares; pode haver atraso.</string>
+    <string name="radio_ptt_release_to_send">Solte para enviar</string>
+    <string name="radio_ptt_hold_to_talk">Segure para falar</string>
+    <string name="radio_ptt_please_wait">Aguarde</string>
+    <string name="radio_ptt_a11y_start">Começar a falar</string>
+    <string name="radio_ptt_a11y_stop">Parar e enviar</string>
+    <!-- REV4: recorded, store-and-forward group voice channels (not live multi-party PTT). -->
+    <string name="radio_group_title">Canais de rádio em grupo</string>
+    <string name="radio_group_instructions">Entre em um grupo e segure o microfone para gravar. Solte, confira o áudio e toque em Enviar.</string>
+    <string name="radio_group_async_disclaimer">Áudio gravado, não chamada ao vivo. A entrega pode aguardar uma rota Mesh disponível.</string>
+    <string name="radio_group_create">Criar grupo de voz</string>
+    <string name="radio_group_empty">Nenhum grupo ainda. Escolha pelo menos dois contatos para criar um.</string>
+    <string name="radio_group_open">Abrir grupo para gravar</string>
+    <string name="radio_group_unread">%1$d não lidas</string>
+    <string name="radio_group_select_two">Selecione pelo menos duas pessoas para criar um grupo.</string>
+
+    <!-- NÓS REV5: fast group voice bursts. Separate from ordinary reviewed voice notes. -->
+    <string name="nos_group_title">Rádio de grupo</string>
+    <string name="nos_group_members">%1$d participantes no grupo</string>
+    <string name="nos_group_disclaimer">Apertar e enviar: segure para gravar uma rajada curta e solte para enviá-la ao grupo. A entrega ocorre pelo Mesh quando houver rota, podendo demorar. Não é voz ao vivo.</string>
+    <string name="nos_group_floor_local">Controle de turno desta versão: apenas neste celular. Outros aparelhos ainda não recebem reservas de microfone em tempo real.</string>
+    <string name="nos_group_allow_mic">Permitir microfone</string>
+    <string name="nos_group_hold">SEGURE PARA FALAR</string>
+    <string name="nos_group_release">SOLTE PARA ENVIAR</string>
+    <string name="nos_group_ready">Pronto para gravar</string>
+    <string name="nos_group_recording">Gravando: %1$d s</string>
+    <string name="nos_group_sending">Preparando e enviando áudio…</string>
+    <string name="nos_group_recorded">Áudio gravado com prévia</string>
+    <string name="nos_group_recorded_explanation">Na conversa do grupo, o microfone tradicional mantém a prévia e o botão Enviar.</string>
+    <string name="nos_group_unavailable">Grupo inexistente, deixado ou sem permissão para gravar.</string>
+    <string name="nos_group_mic_error">Não foi possível gravar o áudio. Verifique o microfone.</string>
+    <string name="nos_group_send_error">Não foi possível colocar o áudio na fila do grupo.</string>
+    <string name="nos_group_too_short">Segure um pouco mais para gravar a mensagem.</string>
+    <string name="nos_group_queued">Áudio colocado na fila de mensagens do grupo. Entrega não confirmada.</string>
+    <string name="nos_group_fast_ptt">Apertar e enviar</string>
+    <string name="nos_radio_experimental">PTT de grupo (experimental)</string>
+</resources>
