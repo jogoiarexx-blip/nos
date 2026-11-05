@@ -1,0 +1,62 @@
+name: Publicar NÓS REV6 (integrar revisões)
+
+on:
+  push:
+    paths:
+      - '.github/workflows/nos-publicar-rev6.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: nos-publicar-rev6
+  cancel-in-progress: false
+
+jobs:
+  publicar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout do repositorio NÓS
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          persist-credentials: true
+      - name: Validar integridade dos patches
+        run: |
+          cd .nos/patches
+          sha256sum -c <<'CHECKSUMS'
+          61c5b3146da6e94bb9a5df152ef356f3af1ac41580d041a828edff78e156166d  Radio-Mesh-REV1.patch
+          2d78ac6396d82c8ca47529529ce78a36e8d6c67f3a6264741405f4c5bfe67491  Radio-Mesh-REV1-para-REV2.patch
+          603969f55f64f677083712763b3e647d663a62189e4288c6feb8b4613b2936d4  Radio-Mesh-REV2-para-REV3.patch
+          cdefab41d1bfc62369f5f12b20b6dd5cf5ab970e98e2df8815ec32ca1d939add  Radio-Mesh-REV3-para-REV4.patch
+          b8c0d4a1a29c3ac364937fe8948e71259ba91424a26f190c72d947d7a77a8f11  NOS-REV4-para-REV5.patch
+          ada014ef4b0524f2f03b1ff2aeadaddf8ed9c78ff694d23ce9edbaf350b855b8  NOS-REV5-para-REV6.patch
+          CHECKSUMS
+      - name: Reconstruir REV6 desde Knit v2.10.2
+        run: |
+          git clone --depth 1 --branch v2.10.2 https://github.com/getknit/knit.git /tmp/nos-source
+          test "$(git -C /tmp/nos-source rev-parse --short HEAD)" = "96b8d79"
+          for p in             Radio-Mesh-REV1.patch             Radio-Mesh-REV1-para-REV2.patch             Radio-Mesh-REV2-para-REV3.patch             Radio-Mesh-REV3-para-REV4.patch             NOS-REV4-para-REV5.patch             NOS-REV5-para-REV6.patch; do
+            git -C /tmp/nos-source apply --check "$GITHUB_WORKSPACE/.nos/patches/$p"
+            git -C /tmp/nos-source apply "$GITHUB_WORKSPACE/.nos/patches/$p"
+          done
+      - name: Aplicar os fontes REV6 sem apagar arquivos extras
+        run: |
+          rsync -a --exclude='.git/' --exclude='.github/workflows/' /tmp/nos-source/ ./
+          test -f app/src/main/java/app/getknit/knit/ui/radiohub/LanRadioEngine.kt
+          test -f app/src/main/java/app/getknit/knit/ui/radiohub/LanRadioScreen.kt
+          test -f app/src/main/java/app/getknit/knit/ui/radiohub/LanRadioWire.kt
+          grep -q "NOS LAN Radio v1" app/src/main/java/app/getknit/knit/ui/radiohub/LanRadioWire.kt
+          grep -q "NÓS REV6" NOS_REV6_CHANGELOG.md
+      - name: Publicar a REV6 no GitHub
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "REV6 ja sincronizada"
+            exit 0
+          fi
+          git commit -m "feat: NÓS REV6 com mensagens e canais LAN PTT [skip ci]"
+          git push origin HEAD:main

@@ -1,0 +1,587 @@
+--- a/app/build.gradle.kts
++++ b/app/build.gradle.kts
+@@ -254,7 +254,9 @@
+     if (nativeSymbols) ndkVersion = "28.2.13676358"
+ 
+     defaultConfig {
+-        applicationId = "app.getknit.knit"
++        // Fork ID: allows the Radio Mesh APK to coexist with the original Knit installation.
++        // Keep the Kotlin namespace and mesh wire protocol untouched for interoperability.
++        applicationId = "app.getknit.knit.radiomesh"
+         // minSdk 29 is the shared data-path floor: BLE L2CAP CoC and the Wi-Fi Aware NDP
+         // (WifiAwareNetworkSpecifier.Builder) are both API 29. Both radios run on 29+. Wi-Fi Aware uses
+         // Instant Communication Mode + NEARBY_WIFI_DEVICES on 33+ and ACCESS_FINE_LOCATION (no ICM) on 29-32;
+--- a/app/src/main/java/app/getknit/knit/ui/KnitApp.kt
++++ b/app/src/main/java/app/getknit/knit/ui/KnitApp.kt
+@@ -69,6 +69,7 @@
+ import app.getknit.knit.ui.onboarding.OnboardingScreen
+ import app.getknit.knit.ui.profile.ProfileDetailsScreen
+ import app.getknit.knit.ui.profile.ProfileScreen
++import app.getknit.knit.ui.radiohub.RadioHubScreen
+ import app.getknit.knit.ui.relay.InternetRelayScreen
+ import app.getknit.knit.ui.relay.RelayDetailScreen
+ import app.getknit.knit.ui.relay.RelayInviteInbox
+@@ -97,6 +98,7 @@
+ private object Routes {
+     const val ONBOARDING = "onboarding"
+     const val CHAT_LIST = "chatlist"
++    const val RADIO_HUB = "radiohub"
+     const val CONTACTS = "contacts"
+     const val SETTINGS = "settings"
+     const val PROFILE = "profile"
+@@ -414,11 +416,20 @@
+                     onNewMessage = { navController.navigate(Routes.CONTACTS) },
+                     onOpenSettings = { navController.navigate(Routes.SETTINGS) },
+                     onOpenYourMesh = { navController.navigate(Routes.YOUR_MESH) },
++                    onOpenRadioHub = { navController.navigate(Routes.RADIO_HUB) },
+                     onOpenDiagnostics = { navController.navigate(Routes.DIAGNOSTICS) },
+                     onOpenMessageRequests = { navController.navigate(Routes.MESSAGE_REQUESTS) },
+                     onOpenDonate = { navController.navigate(Routes.DONATE) },
+                     onOpenAddContact = { navController.navigate(Routes.ADD_CONTACT) },
+                     onOpenWhatsNew = { navController.navigate(Routes.WHATS_NEW) },
++                )
++            }
++            composable(Routes.RADIO_HUB) { entry ->
++                RadioHubScreen(
++                    onBack = { navController.popFrom(entry) },
++                    onOpenConversation = { id -> navController.navigate(Routes.chat(id)) },
++                    onPickContact = { navController.navigate(Routes.CONTACTS) },
++                    onOpenYourMesh = { navController.navigate(Routes.YOUR_MESH) },
+                 )
+             }
+             composable(Routes.CONTACTS) { entry ->
+--- a/app/src/main/java/app/getknit/knit/ui/chatlist/ChatListScreen.kt
++++ b/app/src/main/java/app/getknit/knit/ui/chatlist/ChatListScreen.kt
+@@ -41,6 +41,7 @@
+ import androidx.compose.material.icons.filled.MoreVert
+ import androidx.compose.material.icons.filled.NetworkCheck
+ import androidx.compose.material.icons.filled.PersonAdd
++import androidx.compose.material.icons.filled.Mic
+ import androidx.compose.material.icons.filled.Search
+ import androidx.compose.material.icons.filled.Settings
+ import androidx.compose.material3.AlertDialog
+@@ -135,6 +136,7 @@
+     onOpenAddContact: () -> Unit,
+     onOpenWhatsNew: () -> Unit = {},
+     viewModel: ChatListViewModel = koinViewModel(),
++    onOpenRadioHub: () -> Unit = {},
+ ) {
+     val state by viewModel.state.collectAsStateWithLifecycle()
+     val whatsNew by viewModel.whatsNew.collectAsStateWithLifecycle()
+@@ -158,6 +160,7 @@
+         onNewMessage = onNewMessage,
+         onOpenSettings = onOpenSettings,
+         onOpenYourMesh = onOpenYourMesh,
++        onOpenRadioHub = onOpenRadioHub,
+         onOpenDiagnostics = onOpenDiagnostics,
+         onOpenMessageRequests = onOpenMessageRequests,
+         onOpenDonate = onOpenDonate,
+@@ -259,6 +262,7 @@
+     whatsNew: WhatsNewEntry? = null,
+     onOpenWhatsNew: () -> Unit = {},
+     onDismissWhatsNew: () -> Unit = {},
++    onOpenRadioHub: () -> Unit = {},
+ ) {
+     var menuOpen by remember { mutableStateOf(false) }
+ 
+@@ -296,6 +300,12 @@
+                     }
+                 },
+                 actions = {
++                    IconButton(
++                        onClick = onOpenRadioHub,
++                        modifier = Modifier.size(48.dp).semantics { testTag = "chatlist_radio_hub" },
++                    ) {
++                        Icon(Icons.Filled.Mic, contentDescription = stringResource(R.string.radio_hub_open))
++                    }
+                     IconButton(onClick = onSearch, modifier = Modifier.size(48.dp).semantics { testTag = "chatlist_search" }) {
+                         Icon(Icons.Filled.Search, contentDescription = stringResource(R.string.search_title))
+                     }
+@@ -333,6 +343,14 @@
+                             expanded = menuOpen,
+                             onDismissRequest = { menuOpen = false },
+                         ) {
++                            DropdownMenuItem(
++                                text = { Text(stringResource(R.string.radio_hub_open)) },
++                                leadingIcon = { Icon(Icons.Filled.Mic, contentDescription = null) },
++                                onClick = {
++                                    menuOpen = false
++                                    onOpenRadioHub()
++                                },
++                            )
+                             DropdownMenuItem(
+                                 text = { Text(stringResource(R.string.settings_title)) },
+                                 leadingIcon = { Icon(Icons.Filled.Settings, contentDescription = null) },
+--- /dev/null
++++ b/app/src/main/java/app/getknit/knit/ui/radiohub/RadioHubScreen.kt
+@@ -0,0 +1,273 @@
++package app.getknit.knit.ui.radiohub
++
++import androidx.compose.foundation.layout.Arrangement
++import androidx.compose.foundation.layout.Column
++import androidx.compose.foundation.layout.PaddingValues
++import androidx.compose.foundation.layout.Row
++import androidx.compose.foundation.layout.Spacer
++import androidx.compose.foundation.layout.fillMaxSize
++import androidx.compose.foundation.layout.fillMaxWidth
++import androidx.compose.foundation.layout.padding
++import androidx.compose.foundation.layout.size
++import androidx.compose.foundation.lazy.LazyColumn
++import androidx.compose.foundation.lazy.items
++import androidx.compose.material.icons.Icons
++import androidx.compose.material.icons.automirrored.filled.ArrowBack
++import androidx.compose.material.icons.filled.Hub
++import androidx.compose.material.icons.filled.Mic
++import androidx.compose.material.icons.filled.PersonAdd
++import androidx.compose.material3.Button
++import androidx.compose.material3.Card
++import androidx.compose.material3.ExperimentalMaterial3Api
++import androidx.compose.material3.Icon
++import androidx.compose.material3.IconButton
++import androidx.compose.material3.MaterialTheme
++import androidx.compose.material3.OutlinedButton
++import androidx.compose.material3.Scaffold
++import androidx.compose.material3.Text
++import androidx.compose.material3.TextButton
++import androidx.compose.material3.TopAppBar
++import androidx.compose.runtime.Composable
++import androidx.compose.runtime.getValue
++import androidx.compose.ui.Alignment
++import androidx.compose.ui.Modifier
++import androidx.compose.ui.res.pluralStringResource
++import androidx.compose.ui.res.stringResource
++import androidx.compose.ui.semantics.semantics
++import androidx.compose.ui.semantics.testTag
++import androidx.compose.ui.text.font.FontWeight
++import androidx.compose.ui.unit.dp
++import androidx.lifecycle.compose.collectAsStateWithLifecycle
++import app.getknit.knit.R
++import app.getknit.knit.data.message.Conversations
++import app.getknit.knit.mesh.TransportHealth
++import app.getknit.knit.ui.chatlist.ChatListUiState
++import app.getknit.knit.ui.chatlist.ChatListViewModel
++import app.getknit.knit.ui.chatlist.ConversationRow
++import org.koin.androidx.compose.koinViewModel
++
++/**
++ * A voice-first doorway into Knit, not a second call engine.
++ *
++ * Walkie is currently a peer-to-peer mesh call entered from a DM's call button.
++ * The public Nearby room and group threads remain MESSAGE rooms, not shared live
++ * PTT channels. This screen intentionally does not imply otherwise.
++ */
++@Composable
++fun RadioHubScreen(
++    onBack: () -> Unit,
++    onOpenConversation: (String) -> Unit,
++    onPickContact: () -> Unit,
++    onOpenYourMesh: () -> Unit,
++    viewModel: ChatListViewModel = koinViewModel(),
++) {
++    val state by viewModel.state.collectAsStateWithLifecycle()
++    RadioHubContent(
++        state = state,
++        onBack = onBack,
++        onOpenConversation = onOpenConversation,
++        onPickContact = onPickContact,
++        onOpenYourMesh = onOpenYourMesh,
++        onStartMesh = viewModel::startMesh,
++        onResumeMesh = viewModel::resumeMesh,
++    )
++}
++
++internal fun radioPeers(conversations: List<ConversationRow>): List<ConversationRow> =
++    conversations.filterNot { it.isRoom || it.isGroup }
++
++@OptIn(ExperimentalMaterial3Api::class)
++@Composable
++internal fun RadioHubContent(
++    state: ChatListUiState,
++    onBack: () -> Unit,
++    onOpenConversation: (String) -> Unit,
++    onPickContact: () -> Unit,
++    onOpenYourMesh: () -> Unit,
++    onStartMesh: () -> Unit,
++    onResumeMesh: () -> Unit,
++) {
++    val peers = radioPeers(state.conversations)
++
++    Scaffold(
++        topBar = {
++            TopAppBar(
++                title = { Text(stringResource(R.string.radio_hub_title)) },
++                navigationIcon = {
++                    IconButton(onClick = onBack) {
++                        Icon(
++                            Icons.AutoMirrored.Filled.ArrowBack,
++                            contentDescription = stringResource(R.string.radio_hub_back),
++                        )
++                    }
++                },
++            )
++        },
++    ) { padding ->
++        LazyColumn(
++            modifier = Modifier.fillMaxSize().padding(padding).semantics { testTag = "radio_hub" },
++            contentPadding = PaddingValues(16.dp),
++            verticalArrangement = Arrangement.spacedBy(12.dp),
++        ) {
++            item(key = "mesh_status") {
++                RadioMeshCard(state, onStartMesh, onResumeMesh, onOpenYourMesh)
++            }
++            item(key = "walkie_howto") {
++                RadioWalkieCard(onPickContact)
++            }
++            item(key = "nearby_room") {
++                OutlinedButton(
++                    onClick = { onOpenConversation(Conversations.NEARBY) },
++                    modifier = Modifier.fillMaxWidth().semantics { testTag = "radio_hub_nearby" },
++                ) {
++                    Text(stringResource(R.string.radio_hub_nearby_messages))
++                }
++            }
++            item(key = "recent_title") {
++                Text(
++                    stringResource(R.string.radio_hub_recent_people),
++                    style = MaterialTheme.typography.titleMedium,
++                    fontWeight = FontWeight.SemiBold,
++                )
++            }
++            if (peers.isEmpty()) {
++                item(key = "empty_peers") {
++                    Text(
++                        stringResource(R.string.radio_hub_empty_people),
++                        color = MaterialTheme.colorScheme.onSurfaceVariant,
++                    )
++                }
++            } else {
++                items(peers, key = { it.id }) { peer ->
++                    RadioPeerButton(peer, onOpenConversation)
++                }
++            }
++        }
++    }
++}
++
++@Composable
++private fun RadioMeshCard(
++    state: ChatListUiState,
++    onStartMesh: () -> Unit,
++    onResumeMesh: () -> Unit,
++    onOpenYourMesh: () -> Unit,
++) {
++    Card(modifier = Modifier.fillMaxWidth()) {
++        Column(
++            modifier = Modifier.padding(16.dp),
++            verticalArrangement = Arrangement.spacedBy(8.dp),
++        ) {
++            Row(verticalAlignment = Alignment.CenterVertically) {
++                Icon(Icons.Filled.Hub, contentDescription = null)
++                Spacer(Modifier.size(10.dp))
++                Text(
++                    stringResource(R.string.radio_hub_mesh_status),
++                    style = MaterialTheme.typography.titleMedium,
++                    fontWeight = FontWeight.SemiBold,
++                )
++            }
++            RadioMeshStatus(state)
++            Text(
++                stringResource(R.string.radio_hub_offline_explanation),
++                style = MaterialTheme.typography.bodySmall,
++                color = MaterialTheme.colorScheme.onSurfaceVariant,
++            )
++            when {
++                state.meshStopped ->
++                    Button(onClick = onStartMesh) {
++                        Text(stringResource(R.string.radio_hub_start_mesh))
++                    }
++                state.pausedUntil != null ->
++                    Button(onClick = onResumeMesh) {
++                        Text(stringResource(R.string.radio_hub_resume_mesh))
++                    }
++                else ->
++                    TextButton(onClick = onOpenYourMesh) {
++                        Text(stringResource(R.string.radio_hub_network_details))
++                    }
++            }
++        }
++    }
++}
++
++@Composable
++private fun RadioMeshStatus(state: ChatListUiState) {
++    val radiosUnavailable =
++        state.transportHealth == TransportHealth.Unavailable ||
++            state.radioWarning == app.getknit.knit.ui.chatlist.RadioWarning.AllRadiosOff
++    val status =
++        when {
++            state.meshStopped -> stringResource(R.string.radio_hub_stopped)
++            state.pausedUntil != null -> stringResource(R.string.radio_hub_paused)
++            radiosUnavailable -> stringResource(R.string.radio_hub_radios_off)
++            state.isLoading -> stringResource(R.string.radio_hub_loading)
++            state.neighborCount == 0 -> stringResource(R.string.radio_hub_searching)
++            else ->
++                pluralStringResource(
++                    R.plurals.radio_hub_neighbors,
++                    state.neighborCount,
++                    state.neighborCount,
++                )
++        }
++    Text(status, style = MaterialTheme.typography.bodyLarge)
++}
++
++@Composable
++private fun RadioWalkieCard(onPickContact: () -> Unit) {
++    Card(modifier = Modifier.fillMaxWidth()) {
++        Column(
++            modifier = Modifier.padding(16.dp),
++            verticalArrangement = Arrangement.spacedBy(8.dp),
++        ) {
++            Row(verticalAlignment = Alignment.CenterVertically) {
++                Icon(Icons.Filled.Mic, contentDescription = null)
++                Spacer(Modifier.size(10.dp))
++                Text(
++                    stringResource(R.string.radio_hub_walkie_title),
++                    style = MaterialTheme.typography.titleMedium,
++                    fontWeight = FontWeight.SemiBold,
++                )
++            }
++            Text(
++                stringResource(R.string.radio_hub_walkie_instructions),
++                style = MaterialTheme.typography.bodyMedium,
++            )
++            Text(
++                stringResource(R.string.radio_hub_walkie_limits),
++                color = MaterialTheme.colorScheme.onSurfaceVariant,
++                style = MaterialTheme.typography.bodySmall,
++            )
++            Button(
++                onClick = onPickContact,
++                modifier = Modifier.fillMaxWidth().semantics { testTag = "radio_hub_pick_contact" },
++            ) {
++                Icon(Icons.Filled.PersonAdd, contentDescription = null)
++                Spacer(Modifier.size(8.dp))
++                Text(stringResource(R.string.radio_hub_pick_contact))
++            }
++        }
++    }
++}
++
++@Composable
++private fun RadioPeerButton(
++    peer: ConversationRow,
++    onOpenConversation: (String) -> Unit,
++) {
++    OutlinedButton(
++        onClick = { onOpenConversation(peer.id) },
++        modifier = Modifier.fillMaxWidth().semantics { testTag = "radio_hub_peer" },
++    ) {
++        Column(
++            modifier = Modifier.weight(1f),
++            horizontalAlignment = Alignment.Start,
++        ) {
++            Text(peer.title)
++            Text(
++                stringResource(R.string.radio_hub_open_chat),
++                style = MaterialTheme.typography.bodySmall,
++            )
++        }
++    }
++}
+--- a/app/src/main/res/values/strings.xml
++++ b/app/src/main/res/values/strings.xml
+@@ -1,5 +1,5 @@
+ <resources xmlns:tools="http://schemas.android.com/tools">
+-    <string name="app_name">Knit</string>
++    <string name="app_name">Rádio Mesh</string>
+ 
+     <!-- Notification channel groups -->
+     <string name="notif_group_messages">Messages</string>
+@@ -1717,4 +1717,31 @@
+     <string name="profile_badge_toggle">Show my supporter badge</string>
+     <string name="profile_badge_toggle_summary">Adds a small mark to your photo for the people your profile reaches.</string>
+     <string name="profile_badge_lapsed">Your badge has lapsed, so it isn\'t showing. It returns once it\'s renewed.</string>
++
++    <!-- Radio Mesh fork: a voice-first entry point using Knit\'s existing DM mesh calls. -->
++    <string name="radio_hub_title">Offline radio</string>
++    <string name="radio_hub_open">Open radio mode</string>
++    <string name="radio_hub_back">Go back</string>
++    <string name="radio_hub_mesh_status">Nearby mesh</string>
++    <string name="radio_hub_stopped">Mesh stopped</string>
++    <string name="radio_hub_paused">Mesh paused</string>
++    <string name="radio_hub_radios_off">Wireless radios unavailable</string>
++    <string name="radio_hub_loading">Checking connection…</string>
++    <string name="radio_hub_searching">No connected devices yet. Searching nearby…</string>
++    <plurals name="radio_hub_neighbors">
++        <item quantity="one">%d connected device nearby</item>
++        <item quantity="other">%d connected devices nearby</item>
++    </plurals>
++    <string name="radio_hub_offline_explanation">Uses nearby phones with Bluetooth and Wi-Fi Aware. No internet is required. Range and delivery depend on connected devices.</string>
++    <string name="radio_hub_start_mesh">Start mesh</string>
++    <string name="radio_hub_resume_mesh">Resume mesh</string>
++    <string name="radio_hub_network_details">View network details</string>
++    <string name="radio_hub_walkie_title">Walkie-talkie with a contact</string>
++    <string name="radio_hub_walkie_instructions">Choose a contact, open their conversation, then tap the mesh-call button. Press to talk when the call connects.</string>
++    <string name="radio_hub_walkie_limits">Voice works between compatible phones. This is not a live public group radio: the Nearby room below is for messages.</string>
++    <string name="radio_hub_pick_contact">Choose contact</string>
++    <string name="radio_hub_nearby_messages">Open Nearby message room</string>
++    <string name="radio_hub_recent_people">Recent conversations</string>
++    <string name="radio_hub_empty_people">No private conversations yet. Choose a contact to begin.</string>
++    <string name="radio_hub_open_chat">Open conversation to call</string>
+ </resources>
+--- /dev/null
++++ b/app/src/main/res/values-pt-rBR/strings.xml
+@@ -0,0 +1,37 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <!-- First iteration: the new radio experience. Other Knit strings fall back to English. -->
++    <string name="app_name">Rádio Mesh</string>
++    <string name="radio_hub_title">Rádio offline</string>
++    <string name="radio_hub_open">Abrir modo rádio</string>
++    <string name="radio_hub_back">Voltar</string>
++    <string name="radio_hub_mesh_status">Rede Mesh próxima</string>
++    <string name="radio_hub_stopped">Rede Mesh desligada</string>
++    <string name="radio_hub_paused">Rede Mesh pausada</string>
++    <string name="radio_hub_radios_off">Bluetooth e Wi-Fi indisponíveis</string>
++    <string name="radio_hub_loading">Verificando a conexão…</string>
++    <string name="radio_hub_searching">Nenhum aparelho conectado. Procurando celulares próximos…</string>
++    <plurals name="radio_hub_neighbors">
++        <item quantity="one">%d aparelho próximo conectado</item>
++        <item quantity="other">%d aparelhos próximos conectados</item>
++    </plurals>
++    <string name="radio_hub_offline_explanation">Usa Bluetooth e Wi-Fi Aware entre celulares próximos. Não exige internet. O alcance e a entrega dependem dos aparelhos conectados.</string>
++    <string name="radio_hub_start_mesh">Ligar rede Mesh</string>
++    <string name="radio_hub_resume_mesh">Retomar rede Mesh</string>
++    <string name="radio_hub_network_details">Ver detalhes da rede</string>
++    <string name="radio_hub_walkie_title">Walkie-talkie com contato</string>
++    <string name="radio_hub_walkie_instructions">Escolha um contato, abra a conversa e toque no botão de chamada Mesh. Quando a chamada conectar, aperte para falar.</string>
++    <string name="radio_hub_walkie_limits">A voz depende de aparelhos compatíveis. Ainda não há canal público de voz ao vivo: a sala Próximos abaixo é para mensagens.</string>
++    <string name="radio_hub_pick_contact">Escolher contato</string>
++    <string name="radio_hub_nearby_messages">Abrir sala de mensagens Próximos</string>
++    <string name="radio_hub_recent_people">Conversas recentes</string>
++    <string name="radio_hub_empty_people">Ainda não há conversas privadas. Escolha um contato para começar.</string>
++    <string name="radio_hub_open_chat">Abrir conversa para ligar</string>
++    <string name="your_mesh_title">Sua rede Mesh</string>
++    <string name="chat_more_options">Mais opções</string>
++    <string name="contacts_new_message">Nova mensagem</string>
++    <string name="add_contact_title">Adicionar contato</string>
++    <string name="settings_title">Configurações</string>
++    <string name="search_title">Pesquisar</string>
++    <string name="diagnostics_title">Diagnóstico</string>
++</resources>
+--- /dev/null
++++ b/app/src/test/java/app/getknit/knit/ui/radiohub/RadioHubPolicyTest.kt
+@@ -0,0 +1,41 @@
++package app.getknit.knit.ui.radiohub
++
++import app.getknit.knit.ui.chatlist.ConversationRow
++import org.junit.Assert.assertEquals
++import org.junit.Test
++
++class RadioHubPolicyTest {
++    private fun conversation(
++        id: String,
++        isRoom: Boolean = false,
++        isGroup: Boolean = false,
++    ) = ConversationRow(
++        id = id,
++        title = id,
++        avatarHash = null,
++        isRoom = isRoom,
++        isGroup = isGroup,
++        lastPreview = null,
++        lastMessageAt = null,
++        unreadCount = 0,
++    )
++
++    @Test
++    fun `only private conversations are offered as walkie entry points`() {
++        val conversations =
++            listOf(
++                conversation("Nearby", isRoom = true),
++                conversation("Alice"),
++                conversation("Team", isGroup = true),
++                conversation("Bob"),
++                conversation("LoRa", isRoom = true),
++            )
++
++        assertEquals(listOf("Alice", "Bob"), radioPeers(conversations).map { it.id })
++    }
++
++    @Test
++    fun `empty conversation list offers no walkie recipients`() {
++        assertEquals(emptyList<ConversationRow>(), radioPeers(emptyList()))
++    }
++}
+--- a/.github/workflows/ci.yml
++++ b/.github/workflows/ci.yml
+@@ -53,6 +53,12 @@
+       - uses: gradle/actions/setup-gradle@v5
+       - name: Assemble debug APK
+         run: ./gradlew :app:assembleDebug --stacktrace --console=plain
++      - name: Upload Radio Mesh debug APK (test signing, not for production)
++        uses: actions/upload-artifact@v7
++        with:
++          name: radio-mesh-debug-apk
++          path: app/build/outputs/apk/debug/*.apk
++          if-no-files-found: error
+       - name: JVM unit tests
+         run: ./gradlew :app:testDebugUnitTest --stacktrace --console=plain
+       - name: Upload unit-test report
+--- /dev/null
++++ b/RADIO_MESH_REV1.md
+@@ -0,0 +1,54 @@
++# Rádio Mesh — Revisão 1 (fork experimental do Knit 2.10.2)
++
++## Mudanças realmente implementadas
++
++- Nova **Central de Rádio** (`RadioHubScreen.kt`), acessível pelo ícone de microfone
++  na barra superior das conversas ou pelo menu de opções.
++- Exibição do número de aparelhos diretamente conectados, estado da rede Mesh,
++  e ações reais para religar ou retomar a rede previamente pausada.
++- Seleção de contatos para iniciar uma conversa privada e usar a chamada Mesh
++  **walkie-talkie já existente** no Knit (se ambos os aparelhos forem compatíveis).
++- Acesso explícito à sala pública **Nearby**, identificada corretamente como sala
++  de **mensagens**, não de voz ao vivo.
++- Lista de conversas privadas recentes, sem apresentar conversas em grupo ou
++  salas públicas como se fossem destinatários de chamada individual.
++- Textos da Central de Rádio em português brasileiro e inglês. Outros textos
++  do Knit continuam em inglês quando ainda não foram traduzidos.
++- Nome visível **Rádio Mesh** e `applicationId` próprio
++  `app.getknit.knit.radiomesh`, evitando substituir o Knit original instalado.
++- Dois testes unitários de filtragem de conversas na Central de Rádio.
++
++## Importante: o que NÃO foi implementado nesta revisão
++
++- Não existe ainda canal de voz público (PTT de 1 para muitos).
++- Não foi criado protocolo de voz ou retransmissão novo.
++- Não houve alteração no código criptográfico, nas chaves, no formato de pacotes,
++  nos rádios BLE/Wi-Fi Aware ou na lógica de entrega Mesh.
++- Não foi testado áudio ou alcance entre dois aparelhos reais.
++- O APK não foi compilado nesta entrega; exige Android SDK (compile SDK 37.1),
++  JDK 21 e dependências Gradle do projeto.
++
++## Como testar em Android
++
++1. Instale as ferramentas exigidas no README original do Knit e o Android SDK indicado.
++2. Execute `./gradlew :app:testDebugUnitTest` e `./gradlew :app:assembleDebug`.
++   Ao publicar no GitHub, o CI existente também passa a oferecer o artefato
++   **radio-mesh-debug-apk** (instalação manual, não é uma versão assinada de produção).
++3. Instale o APK de depuração no **Celular A** e em outro **Celular B**.
++4. Complete as permissões BLE/Wi-Fi/microfone e a configuração inicial.
++5. Aproxime os aparelhos; confirme que a Central de Rádio mostra o status.
++6. Adicione um contato, abra o chat, toque em chamada Mesh e teste apertar para falar.
++7. Envie mensagens sem conexão móvel nem internet; depois teste entrega via terceiro aparelho.
++8. Teste pausas e retomadas; confirme que o Knit original, quando instalado, permanece intacto.
++
++Para o microfone funcionar, a permissão de áudio do Android precisa estar concedida.
++O próprio Knit decide se a chamada Mesh está disponível e exibe o botão quando compatível.
++
++## Base e licença
++
++Base: https://github.com/getknit/knit — Knit 2.10.2.
++Copyright dos respectivos autores mantido; licença **GPL-3.0-or-later** em `COPYING`.
++Distribuições desse fork devem continuar respeitando a GPL e disponibilizar o
++código-fonte correspondente. Não atribuir os novos recursos aos autores originais.
++
++Este projeto não tem associação oficial com os mantenedores do Knit.

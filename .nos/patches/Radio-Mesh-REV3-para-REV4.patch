@@ -1,0 +1,643 @@
+--- /dev/null
++++ b/RADIO_MESH_REV4.md
+@@ -0,0 +1,37 @@
++# Rádio Mesh REV4 — grupos de voz gravada via Mesh
++
++## Resultado desta revisão
++
++- **Canais de rádio em grupo** aparecem na Central de Rádio a partir de *grupos de conversa já existentes*. Não há novo servidor, nova chave, nova mensagem de rede ou protocolo de chamada.
++- O botão **Abrir microfone do grupo** abre a conversa do grupo. O compositor existente grava áudio ao segurar, libera uma prévia quando solta e exige toque em **Enviar**; só então inicia o fluxo normal de mensagem de voz cifrada e armazenada para posterior entrega.
++- **Criar grupo de voz** abre o seletor dedicado, que exige **pelo menos duas outras pessoas**, evitando abrir um DM como se fosse um canal.
++- Grupos com mensagens não lidas aparecem primeiro. Salas públicas de texto (Nearby, commons, Meshtastic) e conversas individuais são excluídas dessa lista.
++- A chamada walkie-talkie **1:1** da REV3 permanece intocada; a tela diferencia explicitamente voz gravada de chamada ao vivo. Canais não iniciam chamadas de voz automáticas.
++- Traduções novas em pt-BR e inglês, com tags de teste Compose.
++
++## Limitações
++
++- **Não há áudio ao vivo de grupo**, controle de turno global nem retransmissão de streaming. Cada áudio é uma mensagem armazenada e encaminhada quando houver conexão, com latência variável. O microfone fica na tela da conversa do grupo, não na Central.
++- O áudio gravado é revisado e enviado manualmente, evitando transmissão acidental.
++- A existência de um grupo não garante a entrega a todos os participantes; rotas e compatibilidade variam.
++- Ainda faltam execução de `assembleDebug` e testes em 3 Androids sem rede de dados. Não anunciar APK funcional antes de validar esses testes.
++- O projeto base permanece GPL-3.0-or-later e preserva os avisos de atribuição.
++
++## Roteiro de teste
++
++1. Abrir Central de Rádio, criar grupo com dois contatos, enviar nota de voz da conversa e repetir offline com 3 celulares.
++2. Confirmar áudio recebido por cada participante, atraso após desconexão, retomada de entrega e no mínimo 3 tentativas por cenário.
++3. Garantir que o seletor com 1 contato não cria nem inicia DM e que salas públicas não são mostradas como canais.
++4. Verificar chamadas individuais REV3, envio de texto e arquivos de grupo, leitor de tela e permissões.
++
++## Verificações realizadas nesta entrega
++
++- Compilação isolada da regra de listagem/ordenação de grupos e da regra do seletor com `kotlinc` 1.9/JDK 21: **6 asserções passaram**. Não testa o Compose, o transporte nem a criptografia.
++- `python scripts/check_radio_rev4.py`: **passou** (55 recursos de texto de rádio presentes em inglês e pt-BR; navegação e ações básicas).
++- `patch -p1 --dry-run` contra a REV3: **passou**.
++- Tentativa de executar testes Gradle: **bloqueada**, pois `services.gradle.org` não pôde ser resolvido neste ambiente; portanto não há afirmação de APK compilado.
++- Testes Robolectric/Compose incluídos, mas **não executados**: filtro, abertura do grupo sem chamada e bloqueio de DM no seletor de grupos.
++
++## Para compilar no PC/CI
++
++`./gradlew :app:assembleDebug :app:testDebugUnitTest`
+--- a/app/src/main/java/app/getknit/knit/ui/KnitApp.kt
++++ b/app/src/main/java/app/getknit/knit/ui/KnitApp.kt
+@@ -101,6 +101,7 @@
+     const val CHAT_LIST = "chatlist"
+     const val RADIO_HUB = "radiohub"
+     const val RADIO_CONTACTS = "radioContacts"
++    const val RADIO_GROUP_CONTACTS = "radioGroupContacts"
+     const val CONTACTS = "contacts"
+     const val SETTINGS = "settings"
+     const val PROFILE = "profile"
+@@ -431,7 +432,20 @@
+                     onBack = { navController.popFrom(entry) },
+                     onOpenConversation = { id -> navController.navigate(Routes.chat(id)) },
+                     onPickContact = { navController.navigate(Routes.RADIO_CONTACTS) },
++                    onCreateGroup = { navController.navigate(Routes.RADIO_GROUP_CONTACTS) },
+                     onOpenYourMesh = { navController.navigate(Routes.YOUR_MESH) },
++                )
++            }
++            composable(Routes.RADIO_GROUP_CONTACTS) { entry ->
++                ContactsScreen(
++                    onBack = { navController.popFrom(entry) },
++                    onPick = { conversationId ->
++                        navController.navigate(Routes.chat(conversationId)) {
++                            popUpTo(Routes.RADIO_GROUP_CONTACTS) { inclusive = true }
++                        }
++                    },
++                    onAddContact = { navController.navigate(Routes.ADD_CONTACT) },
++                    groupOnly = true,
+                 )
+             }
+             composable(Routes.RADIO_CONTACTS) { entry ->
+--- a/app/src/main/java/app/getknit/knit/ui/contacts/ContactsScreen.kt
++++ b/app/src/main/java/app/getknit/knit/ui/contacts/ContactsScreen.kt
+@@ -76,6 +76,7 @@
+     onAddContact: () -> Unit = {},
+     viewModel: ContactsViewModel = koinViewModel(),
+     singleSelectionOnly: Boolean = false,
++    groupOnly: Boolean = false,
+ ) {
+     val state by viewModel.state.collectAsStateWithLifecycle()
+     val context = LocalContext.current
+@@ -99,6 +100,7 @@
+         onGroupFull = { Toast.makeText(context, groupFullMessage, Toast.LENGTH_SHORT).show() },
+         onAddContact = onAddContact,
+         singleSelectionOnly = singleSelectionOnly,
++        groupOnly = groupOnly,
+     )
+ }
+ 
+@@ -112,6 +114,7 @@
+     onGroupFull: () -> Unit,
+     onAddContact: () -> Unit = {},
+     singleSelectionOnly: Boolean = false,
++    groupOnly: Boolean = false,
+ ) {
+     val selected = remember { mutableStateListOf<String>() }
+ 
+@@ -139,7 +142,7 @@
+                         )
+                     }
+                 },
+-                title = { Text(stringResource(if (singleSelectionOnly) R.string.radio_hub_pick_contact else R.string.contacts_title)) },
++                title = { Text(stringResource(when { singleSelectionOnly -> R.string.radio_hub_pick_contact; groupOnly -> R.string.radio_group_create; else -> R.string.contacts_title })) },
+                 actions = {
+                     IconButton(onClick = onAddContact, modifier = Modifier.size(48.dp).testTag("contacts_add")) {
+                         Icon(Icons.Filled.PersonAdd, contentDescription = stringResource(R.string.add_contact_title))
+@@ -148,10 +151,10 @@
+             )
+         },
+         floatingActionButton = {
+-            if (selected.isNotEmpty()) {
++            if (groupPickerCanConfirm(selected.size, groupOnly)) {
+                 FloatingActionButton(
+                     onClick = {
+-                        if (singleSelectionOnly || selected.size == 1) {
++                        if (!groupOnly && (singleSelectionOnly || selected.size == 1)) {
+                             onPickSingle(selected.first())
+                         } else {
+                             onCreateGroup(selected.toList())
+@@ -172,53 +175,63 @@
+         // is playing over. Drawing the "no contacts yet" empty state there flashed a centred column that
+         // the real rows then replaced in one frame, which is what made the transition read as jagged; show
+         // the same-shaped skeleton instead and cross-fade to whichever state actually arrives.
+-        val listEnter = KnitMotion.enterFade()
+-        val listExit = KnitMotion.exitFade()
+-        AnimatedContent(
+-            targetState = state.isLoading,
+-            transitionSpec = { listEnter togetherWith listExit },
+-            label = "contactsLoading",
+-            modifier = Modifier.fillMaxSize().padding(padding),
+-        ) { loading ->
+-            when {
+-                loading -> {
+-                    ContactsSkeleton(modifier = Modifier.fillMaxSize())
+-                }
+-
+-                state.contacts.isEmpty() -> {
+-                    Box(
+-                        modifier = Modifier.fillMaxSize().padding(32.dp),
+-                        contentAlignment = Alignment.Center,
+-                    ) {
+-                        Column(
+-                            horizontalAlignment = Alignment.CenterHorizontally,
+-                            verticalArrangement = Arrangement.spacedBy(16.dp),
++        Column(modifier = Modifier.fillMaxSize().padding(padding)) {
++            if (groupOnly) {
++                Text(
++                    stringResource(R.string.radio_group_select_two),
++                    modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp),
++                    textAlign = TextAlign.Center,
++                    color = MaterialTheme.colorScheme.onSurfaceVariant,
++                )
++            }
++            val listEnter = KnitMotion.enterFade()
++            val listExit = KnitMotion.exitFade()
++            AnimatedContent(
++                targetState = state.isLoading,
++                transitionSpec = { listEnter togetherWith listExit },
++                label = "contactsLoading",
++                modifier = Modifier.weight(1f).fillMaxWidth(),
++            ) { loading ->
++                when {
++                    loading -> {
++                        ContactsSkeleton(modifier = Modifier.fillMaxSize())
++                    }
++
++                    state.contacts.isEmpty() -> {
++                        Box(
++                            modifier = Modifier.fillMaxSize().padding(32.dp),
++                            contentAlignment = Alignment.Center,
+                         ) {
+-                            Text(
+-                                text = stringResource(R.string.contacts_empty),
+-                                textAlign = TextAlign.Center,
+-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+-                            )
+-                            OutlinedButton(onClick = onAddContact, modifier = Modifier.testTag("contacts_add_empty")) {
+-                                Icon(Icons.Filled.PersonAdd, contentDescription = null)
+-                                Spacer(Modifier.width(8.dp))
+-                                Text(stringResource(R.string.add_contact_title))
++                            Column(
++                                horizontalAlignment = Alignment.CenterHorizontally,
++                                verticalArrangement = Arrangement.spacedBy(16.dp),
++                            ) {
++                                Text(
++                                    text = stringResource(R.string.contacts_empty),
++                                    textAlign = TextAlign.Center,
++                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
++                                )
++                                OutlinedButton(onClick = onAddContact, modifier = Modifier.testTag("contacts_add_empty")) {
++                                    Icon(Icons.Filled.PersonAdd, contentDescription = null)
++                                    Spacer(Modifier.width(8.dp))
++                                    Text(stringResource(R.string.add_contact_title))
++                                }
+                             }
+                         }
+                     }
+-                }
+-
+-                else -> {
+-                    LazyColumn(
+-                        modifier = Modifier.fillMaxSize(),
+-                        contentPadding = PaddingValues(vertical = 4.dp),
+-                    ) {
+-                        items(state.contacts, key = { it.nodeId }) { contact ->
+-                            ContactRow(
+-                                contact = contact,
+-                                selected = contact.nodeId in selected,
+-                                onClick = { toggle(contact.nodeId) },
+-                            )
++
++                    else -> {
++                        LazyColumn(
++                            modifier = Modifier.fillMaxSize(),
++                            contentPadding = PaddingValues(vertical = 4.dp),
++                        ) {
++                            items(state.contacts, key = { it.nodeId }) { contact ->
++                                ContactRow(
++                                    contact = contact,
++                                    selected = contact.nodeId in selected,
++                                    onClick = { toggle(contact.nodeId) },
++                                )
++                            }
+                         }
+                     }
+                 }
+@@ -314,6 +327,7 @@
+             contentDescription = null,
+             tint = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+         )
++        }
+     }
+ }
+ 
+--- /dev/null
++++ b/app/src/main/java/app/getknit/knit/ui/contacts/GroupPickerPolicy.kt
+@@ -0,0 +1,5 @@
++package app.getknit.knit.ui.contacts
++
++/** A radio group requires two other people. The standard new-chat picker still permits DMs. */
++internal fun groupPickerCanConfirm(selectedCount: Int, groupOnly: Boolean): Boolean =
++    selectedCount > 0 && (!groupOnly || selectedCount >= 2)
+--- /dev/null
++++ b/app/src/main/java/app/getknit/knit/ui/radiohub/RadioGroupPolicy.kt
+@@ -0,0 +1,12 @@
++package app.getknit.knit.ui.radiohub
++
++import app.getknit.knit.ui.chatlist.ConversationRow
++
++/** Only real group chats can carry recorded voice clips; public rooms must never look like channels. */
++internal fun radioGroupThreads(conversations: List<ConversationRow>): List<ConversationRow> =
++    conversations.filter { it.isGroup && !it.isRoom }
++        .sortedWith(
++            compareByDescending<ConversationRow> { it.unreadCount > 0 }
++                .thenByDescending { it.lastMessageAt ?: Long.MIN_VALUE }
++                .thenBy { it.title },
++        )
+--- a/app/src/main/java/app/getknit/knit/ui/radiohub/RadioHubScreen.kt
++++ b/app/src/main/java/app/getknit/knit/ui/radiohub/RadioHubScreen.kt
+@@ -15,6 +15,8 @@
+ import androidx.compose.material.icons.automirrored.filled.ArrowBack
+ import androidx.compose.material.icons.filled.Hub
+ import androidx.compose.material.icons.filled.Mic
++import androidx.compose.material.icons.filled.Groups
++import androidx.compose.material.icons.filled.GraphicEq
+ import androidx.compose.material.icons.filled.PersonAdd
+ import androidx.compose.material3.Button
+ import androidx.compose.material3.Card
+@@ -55,14 +57,15 @@
+  * A voice-first doorway into Knit, not a second call engine. Direct calls route through CallManager.
+  *
+  * Walkie is currently a peer-to-peer mesh call, also available here for existing DMs.
+- * The public Nearby room and group threads remain MESSAGE rooms, not shared live
+- * PTT channels. This screen intentionally does not imply otherwise.
++ * Group voice clips use existing encrypted group messages (store-and-forward), not
++ * a real-time multi-peer call. Nearby remains text-only.
+  */
+ @Composable
+ fun RadioHubScreen(
+     onBack: () -> Unit,
+     onOpenConversation: (String) -> Unit,
+     onPickContact: () -> Unit,
++    onCreateGroup: () -> Unit,
+     onOpenYourMesh: () -> Unit,
+     viewModel: ChatListViewModel = koinViewModel(),
+     dialer: RadioDialViewModel = koinViewModel(),
+@@ -82,6 +85,7 @@
+         dialingPeer = dialingPeer,
+         snackbarHost = { SnackbarHost(snackbars) },
+         onPickContact = onPickContact,
++        onCreateGroup = onCreateGroup,
+         onOpenYourMesh = onOpenYourMesh,
+         onStartMesh = viewModel::startMesh,
+         onResumeMesh = viewModel::resumeMesh,
+@@ -90,6 +94,11 @@
+ 
+ internal fun radioPeers(conversations: List<ConversationRow>): List<ConversationRow> =
+     conversations.filterNot { it.isRoom || it.isGroup }
++
++/** Group voice messages ride the existing encrypted group-chat attachment pipeline.
++ * Nearby / commons / Meshtastic rooms are not voice channels and must never be offered here.
++ */
++
+ 
+ @OptIn(ExperimentalMaterial3Api::class)
+ @Composable
+@@ -101,11 +110,13 @@
+     dialingPeer: String?,
+     snackbarHost: @Composable () -> Unit = {},
+     onPickContact: () -> Unit,
++    onCreateGroup: () -> Unit = {},
+     onOpenYourMesh: () -> Unit,
+     onStartMesh: () -> Unit,
+     onResumeMesh: () -> Unit,
+ ) {
+     val peers = radioPeers(state.conversations)
++    val groups = radioGroupThreads(state.conversations)
+ 
+     Scaffold(
+         snackbarHost = snackbarHost,
+@@ -134,6 +145,22 @@
+             item(key = "walkie_howto") {
+                 RadioWalkieCard(onPickContact)
+             }
++            item(key = "group_title") {
++                RadioGroupIntro(onCreateGroup)
++            }
++            if (groups.isEmpty()) {
++                item(key = "empty_groups") {
++                    Text(
++                        stringResource(R.string.radio_group_empty),
++                        color = MaterialTheme.colorScheme.onSurfaceVariant,
++                        style = MaterialTheme.typography.bodySmall,
++                    )
++                }
++            } else {
++                items(groups, key = { "radio_group_${it.id}" }) { group ->
++                    RadioGroupButton(group, onOpenConversation)
++                }
++            }
+             item(key = "nearby_room") {
+                 OutlinedButton(
+                     onClick = { onOpenConversation(Conversations.NEARBY) },
+@@ -161,6 +188,74 @@
+                     RadioPeerButton(peer, onOpenConversation, onCallPeer, dialingPeer)
+                 }
+             }
++        }
++    }
++}
++
++
++/** A channel here is a persistent *group chat* with store-and-forward voice clips.
++ * It is explicitly NOT a real-time multi-peer walkie session.
++ */
++@Composable
++private fun RadioGroupIntro(onCreateGroup: () -> Unit) {
++    Card(modifier = Modifier.fillMaxWidth()) {
++        Column(
++            modifier = Modifier.fillMaxWidth().padding(16.dp),
++            verticalArrangement = Arrangement.spacedBy(8.dp),
++        ) {
++            Row(verticalAlignment = Alignment.CenterVertically) {
++                Icon(Icons.Filled.Groups, contentDescription = null)
++                Spacer(Modifier.size(10.dp))
++                Text(
++                    stringResource(R.string.radio_group_title),
++                    style = MaterialTheme.typography.titleMedium,
++                    fontWeight = FontWeight.SemiBold,
++                )
++            }
++            Text(stringResource(R.string.radio_group_instructions), style = MaterialTheme.typography.bodyMedium)
++            Text(
++                stringResource(R.string.radio_group_async_disclaimer),
++                style = MaterialTheme.typography.bodySmall,
++                color = MaterialTheme.colorScheme.onSurfaceVariant,
++            )
++            OutlinedButton(
++                onClick = onCreateGroup,
++                modifier = Modifier.fillMaxWidth().semantics { testTag = "radio_group_create" },
++            ) {
++                Icon(Icons.Filled.Groups, contentDescription = null)
++                Spacer(Modifier.size(8.dp))
++                Text(stringResource(R.string.radio_group_create))
++            }
++        }
++    }
++}
++
++@Composable
++private fun RadioGroupButton(
++    group: ConversationRow,
++    onOpenConversation: (String) -> Unit,
++) {
++    Card(modifier = Modifier.fillMaxWidth()) {
++        Column(
++            modifier = Modifier.fillMaxWidth().padding(12.dp),
++            verticalArrangement = Arrangement.spacedBy(8.dp),
++        ) {
++            Row(verticalAlignment = Alignment.CenterVertically) {
++                Icon(Icons.Filled.GraphicEq, contentDescription = null)
++                Spacer(Modifier.size(8.dp))
++                Text(group.title, style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
++                if (group.unreadCount > 0) {
++                    Text(
++                        stringResource(R.string.radio_group_unread, group.unreadCount),
++                        style = MaterialTheme.typography.labelSmall,
++                        color = MaterialTheme.colorScheme.primary,
++                    )
++                }
++            }
++            Button(
++                onClick = { onOpenConversation(group.id) },
++                modifier = Modifier.fillMaxWidth().semantics { testTag = "radio_group_open_${group.id}" },
++            ) { Text(stringResource(R.string.radio_group_open)) }
+         }
+     }
+ }
+--- a/app/src/main/res/values/strings.xml
++++ b/app/src/main/res/values/strings.xml
+@@ -1771,4 +1771,13 @@
+     <string name="radio_ptt_please_wait">Please wait</string>
+     <string name="radio_ptt_a11y_start">Start talking</string>
+     <string name="radio_ptt_a11y_stop">Stop and send</string>
++    <!-- REV4: recorded, store-and-forward group voice channels (not live multi-party PTT). -->
++    <string name="radio_group_title">Group radio channels</string>
++    <string name="radio_group_instructions">Select a group to record a voice message. Hold the microphone in the group chat, release, review, then tap Send.</string>
++    <string name="radio_group_async_disclaimer">Recorded voice messages, not a live group call. Delivery can be delayed until a mesh route exists.</string>
++    <string name="radio_group_create">Create voice group</string>
++    <string name="radio_group_empty">No groups yet. Choose at least two contacts to create one.</string>
++    <string name="radio_group_open">Open group to record</string>
++    <string name="radio_group_unread">%1$d unread</string>
++    <string name="radio_group_select_two">Choose at least two people. Only a group can be created in this mode.</string>
+ </resources>
+--- a/app/src/main/res/values-pt-rBR/strings.xml
++++ b/app/src/main/res/values-pt-rBR/strings.xml
+@@ -61,4 +61,13 @@
+     <string name="radio_ptt_please_wait">Aguarde</string>
+     <string name="radio_ptt_a11y_start">Começar a falar</string>
+     <string name="radio_ptt_a11y_stop">Parar e enviar</string>
++    <!-- REV4: recorded, store-and-forward group voice channels (not live multi-party PTT). -->
++    <string name="radio_group_title">Canais de rádio em grupo</string>
++    <string name="radio_group_instructions">Entre em um grupo e segure o microfone para gravar. Solte, confira o áudio e toque em Enviar.</string>
++    <string name="radio_group_async_disclaimer">Áudio gravado, não chamada ao vivo. A entrega pode aguardar uma rota Mesh disponível.</string>
++    <string name="radio_group_create">Criar grupo de voz</string>
++    <string name="radio_group_empty">Nenhum grupo ainda. Escolha pelo menos dois contatos para criar um.</string>
++    <string name="radio_group_open">Abrir grupo para gravar</string>
++    <string name="radio_group_unread">%1$d não lidas</string>
++    <string name="radio_group_select_two">Selecione pelo menos duas pessoas para criar um grupo.</string>
+ </resources>
+--- /dev/null
++++ b/app/src/test/java/app/getknit/knit/ui/contacts/GroupPickerPolicyTest.kt
+@@ -0,0 +1,22 @@
++package app.getknit.knit.ui.contacts
++
++import org.junit.Assert.assertFalse
++import org.junit.Assert.assertTrue
++import org.junit.Test
++
++class GroupPickerPolicyTest {
++    @Test fun `empty selection cannot be confirmed`() {
++        assertFalse(groupPickerCanConfirm(0, groupOnly = true))
++        assertFalse(groupPickerCanConfirm(0, groupOnly = false))
++    }
++
++    @Test fun `group-only selection requires two other people`() {
++        assertFalse(groupPickerCanConfirm(1, groupOnly = true))
++        assertTrue(groupPickerCanConfirm(2, groupOnly = true))
++        assertTrue(groupPickerCanConfirm(7, groupOnly = true))
++    }
++
++    @Test fun `normal chat picker may still open a dm`() {
++        assertTrue(groupPickerCanConfirm(1, groupOnly = false))
++    }
++}
+--- a/app/src/test/java/app/getknit/knit/ui/radiohub/RadioContactPickerTest.kt
++++ b/app/src/test/java/app/getknit/knit/ui/radiohub/RadioContactPickerTest.kt
+@@ -1,6 +1,7 @@
+ package app.getknit.knit.ui.radiohub
+ 
+ import androidx.compose.ui.test.junit4.createComposeRule
++import androidx.compose.ui.test.assertDoesNotExist
+ import androidx.compose.ui.test.onNodeWithTag
+ import androidx.compose.ui.test.performClick
+ import androidx.test.ext.junit.runners.AndroidJUnit4
+@@ -46,4 +47,31 @@
+         assertEquals(listOf("bob"), picked)
+         assertTrue(createdGroups.isEmpty())
+     }
++    @Test fun `group-only picker never opens a dm with one selected peer`() {
++        val picked = mutableListOf<String>()
++        val created = mutableListOf<List<String>>()
++        compose.setContent {
++            KnitTheme {
++                ContactsScreenContent(
++                    state = ContactsUiState(
++                        contacts = listOf(
++                            Contact("ada", "Ada", null, true),
++                            Contact("bob", "Bob", null, true),
++                        ),
++                    ),
++                    onBack = {},
++                    onPickSingle = { picked += it },
++                    onCreateGroup = { created += it },
++                    onGroupFull = {},
++                    groupOnly = true,
++                )
++            }
++        }
++        compose.onNodeWithTag("contact_ada").performClick()
++        compose.onNodeWithTag("contacts_fab").assertDoesNotExist()
++        compose.onNodeWithTag("contact_bob").performClick()
++        compose.onNodeWithTag("contacts_fab").performClick()
++        assertTrue(picked.isEmpty())
++        assertEquals(listOf(listOf("ada", "bob")), created)
++    }
+ }
+--- a/app/src/test/java/app/getknit/knit/ui/radiohub/RadioHubActionsTest.kt
++++ b/app/src/test/java/app/getknit/knit/ui/radiohub/RadioHubActionsTest.kt
+@@ -33,14 +33,20 @@
+         unreadCount = 0,
+     )
+ 
+-    private fun show(dialing: String? = null, onCall: (String) -> Unit) {
++    private fun show(
++        dialing: String? = null,
++        onCall: (String) -> Unit,
++        onOpen: (String) -> Unit = {},
++        onCreateGroup: () -> Unit = {},
++    ) {
+         compose.setContent {
+             KnitTheme {
+                 RadioHubContent(
+                     state = ChatListUiState(conversations = listOf(row("alice"), row("group", group = true))),
+                     onBack = {},
+-                    onOpenConversation = {},
++                    onOpenConversation = onOpen,
+                     onCallPeer = onCall,
++                    onCreateGroup = onCreateGroup,
+                     dialingPeer = dialing,
+                     onPickContact = {},
+                     onOpenYourMesh = {},
+@@ -54,15 +60,33 @@
+     @Test fun `call button starts walkie for individual conversation only`() {
+         val called = mutableListOf<String>()
+         show(onCall = { called += it })
+-        compose.onNodeWithTag("radio_hub").performScrollToIndex(4)
++        compose.onNodeWithTag("radio_hub").performScrollToIndex(6)
+         compose.onNodeWithTag("radio_hub_call_alice").assertIsDisplayed().performClick()
+         assertEquals(listOf("alice"), called)
+         compose.onNodeWithTag("radio_hub_call_group").assertDoesNotExist()
+     }
+ 
++    @Test fun `group channel opens chat without placing a live walkie call`() {
++        val opened = mutableListOf<String>()
++        val called = mutableListOf<String>()
++        show(onCall = { called += it }, onOpen = { opened += it })
++        compose.onNodeWithTag("radio_hub").performScrollToIndex(3)
++        compose.onNodeWithTag("radio_group_open_group").assertIsDisplayed().performClick()
++        assertEquals(listOf("group"), opened)
++        assertEquals(emptyList<String>(), called)
++    }
++
++    @Test fun `create group opens a group-only picker`() {
++        var creates = 0
++        show(onCall = {}, onCreateGroup = { creates++ })
++        compose.onNodeWithTag("radio_hub").performScrollToIndex(2)
++        compose.onNodeWithTag("radio_group_create").assertIsDisplayed().performClick()
++        assertEquals(1, creates)
++    }
++
+     @Test fun `dial button disabled while another request pending`() {
+         show(dialing = "alice", onCall = {})
+-        compose.onNodeWithTag("radio_hub").performScrollToIndex(4)
++        compose.onNodeWithTag("radio_hub").performScrollToIndex(6)
+         compose.onNodeWithTag("radio_hub_call_alice").assertIsNotEnabled()
+     }
+ }
+--- a/app/src/test/java/app/getknit/knit/ui/radiohub/RadioHubPolicyTest.kt
++++ b/app/src/test/java/app/getknit/knit/ui/radiohub/RadioHubPolicyTest.kt
+@@ -35,6 +35,28 @@
+     }
+ 
+     @Test
++    fun `only actual group threads appear as recorded group channels`() {
++        val conversations = listOf(
++            conversation("Nearby", isRoom = true),
++            conversation("Team", isGroup = true),
++            conversation("Mixed", isRoom = true, isGroup = true),
++            conversation("Alice"),
++            conversation("Family", isGroup = true),
++        )
++        assertEquals(listOf("Family", "Team"), radioGroupThreads(conversations).map { it.id })
++    }
++
++    @Test
++    fun `unread group chats are listed first, then most recently active`() {
++        val rows = listOf(
++            conversation("old", isGroup = true).copy(lastMessageAt = 10),
++            conversation("new", isGroup = true).copy(lastMessageAt = 30),
++            conversation("unread", isGroup = true).copy(unreadCount = 2, lastMessageAt = 1),
++        )
++        assertEquals(listOf("unread", "new", "old"), radioGroupThreads(rows).map { it.id })
++    }
++
++    @Test
+     fun `empty conversation list offers no walkie recipients`() {
+         assertEquals(emptyList<ConversationRow>(), radioPeers(emptyList()))
+     }
+--- /dev/null
++++ b/scripts/check_radio_rev4.py
+@@ -0,0 +1,31 @@
++#!/usr/bin/env python3
++"""Fast REV4 source/resource smoke checks. Not a substitute for Android build or device tests."""
++from pathlib import Path
++from xml.etree import ElementTree
++
++root = Path(__file__).resolve().parent.parent
++res = root / 'app/src/main/res'
++sources = root / 'app/src/main/java/app/getknit/knit/ui'
++
++def resource_names(locale):
++    tree = ElementTree.parse(res / locale / 'strings.xml')
++    keys = [n.attrib['name'] for n in tree.getroot() if n.tag == 'string' and n.attrib.get('name', '').startswith('radio_')]
++    assert len(keys) == len(set(keys)), f'duplicate radio resources: {locale}'
++    return set(keys)
++
++en = resource_names('values')
++pt = resource_names('values-pt-rBR')
++assert en == pt, f'radio string mismatch: {en ^ pt}'
++for f in (sources / 'radiohub/RadioHubScreen.kt', sources / 'radiohub/RadioGroupPolicy.kt', sources / 'contacts/ContactsScreen.kt', sources / 'contacts/GroupPickerPolicy.kt', sources / 'KnitApp.kt'):
++    assert f.is_file(), f
++hub = (sources / 'radiohub/RadioHubScreen.kt').read_text()
++nav = (sources / 'KnitApp.kt').read_text()
++contacts = (sources / 'contacts/ContactsScreen.kt').read_text()
++assert 'radioGroupThreads(state.conversations)' in hub
++assert 'onOpenConversation(group.id)' in hub
++assert 'onCallPeer(peer.id)' in hub
++assert 'RADIO_GROUP_CONTACTS' in nav
++assert 'groupOnly = true' in nav
++assert 'groupPickerCanConfirm(selected.size, groupOnly)' in contacts
++assert 'onCreateGroup(selected.toList())' in contacts
++print(f'PASS: {len(en)} translated radio strings, group-only navigation, group and peer actions')

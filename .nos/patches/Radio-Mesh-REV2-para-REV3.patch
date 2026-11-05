@@ -1,0 +1,485 @@
+--- a/app/src/main/java/app/getknit/knit/ui/call/CallActivity.kt
++++ b/app/src/main/java/app/getknit/knit/ui/call/CallActivity.kt
+@@ -46,6 +46,8 @@
+ import androidx.compose.material.icons.filled.ClosedCaption
+ import androidx.compose.material.icons.filled.Mic
+ import androidx.compose.material.icons.filled.MicOff
++import androidx.compose.material.icons.filled.HourglassTop
++import androidx.compose.material.icons.filled.VolumeUp
+ import androidx.compose.material.icons.outlined.ClosedCaptionDisabled
+ import androidx.compose.material.icons.outlined.Cloud
+ import androidx.compose.material.icons.outlined.Hub
+@@ -89,6 +91,8 @@
+ import androidx.compose.ui.semantics.contentDescription
+ import androidx.compose.ui.semantics.customActions
+ import androidx.compose.ui.semantics.liveRegion
++import androidx.compose.ui.semantics.stateDescription
++import androidx.compose.ui.semantics.testTag
+ import androidx.compose.ui.semantics.semantics
+ import androidx.compose.ui.text.style.TextAlign
+ import androidx.compose.ui.text.style.TextOverflow
+@@ -833,7 +837,7 @@
+                 verticalAlignment = Alignment.Bottom,
+             ) {
+                 CallToggle("Mute", if (state.muted) Icons.Filled.MicOff else Icons.Filled.Mic, state.muted, onMute)
+-                CallAction("End", Icons.Filled.CallEnd, HangUpRed, onHangUp)
++                CallAction(stringResource(R.string.radio_ptt_end_call), Icons.Filled.CallEnd, HangUpRed, onHangUp)
+                 AudioRouteButton(routing, onRoute)
+             }
+         }
+@@ -872,15 +876,16 @@
+             )
+             Spacer(Modifier.height(8.dp))
+         }
+-        Text(talkLine(talk, name), style = MaterialTheme.typography.titleMedium, textAlign = TextAlign.Center)
+-        Spacer(Modifier.height(24.dp))
++        val ptt = radioPttState(talk, link)
++        RadioPttStatus(ptt.mode, name, talk)
++        Spacer(Modifier.height(16.dp))
+         // The talk button takes the centre a call screen gives its red hang-up; the hang-up steps aside to the start.
+         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
+             Box(Modifier.weight(1f), contentAlignment = Alignment.BottomCenter) {
+-                CallAction("End", Icons.Filled.CallEnd, HangUpRed, onHangUp)
++                CallAction(stringResource(R.string.radio_ptt_end_call), Icons.Filled.CallEnd, HangUpRed, onHangUp)
+             }
+             Box(Modifier.weight(1f), contentAlignment = Alignment.BottomCenter) {
+-                TalkButton(recording = talk is Talk.Recording, onTalk, onTalkSend, onTalkCancel)
++                TalkButton(ptt = ptt, onTalk = onTalk, onTalkSend = onTalkSend, onTalkCancel = onTalkCancel)
+             }
+             Box(Modifier.weight(1f), contentAlignment = Alignment.BottomCenter) {
+                 AudioRouteButton(routing, onRoute)
+@@ -890,9 +895,8 @@
+ }
+ 
+ /**
+- * Why a burst may not reach the peer (§3.11): no link this phone can see — the radios are asked for one meanwhile — or
+- * only a path through other phones, which works but is slower and less sure, or no radio path at all but a relay that
+- * carries the bursts (§2.7), which works while both phones stay online.
++ * The link notice names the REAL path: relay use is not offline, and a mesh hop is not
++ * a direct connection. This matters when someone thinks the radio reaches any distance.
+  */
+ @Composable
+ private fun LinkNotice(
+@@ -904,6 +908,7 @@
+         shape = MaterialTheme.shapes.medium,
+         color = if (none) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.secondaryContainer,
+         contentColor = if (none) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onSecondaryContainer,
++        modifier = Modifier.fillMaxWidth(),
+     ) {
+         Row(
+             Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+@@ -919,9 +924,9 @@
+             Icon(icon, contentDescription = null, modifier = Modifier.size(20.dp))
+             Text(
+                 when (link) {
+-                    TalkLink.NONE -> "Not linked to $name yet. Linking…"
+-                    TalkLink.SPOOL -> "No radio link to $name. Going through your relay"
+-                    else -> "No direct link to $name. Going through other phones"
++                    TalkLink.NONE -> stringResource(R.string.radio_ptt_link_missing, name)
++                    TalkLink.SPOOL -> stringResource(R.string.radio_ptt_link_relay, name)
++                    else -> stringResource(R.string.radio_ptt_link_mesh, name)
+                 },
+                 style = MaterialTheme.typography.bodyMedium,
+             )
+@@ -929,39 +934,83 @@
+     }
+ }
+ 
+-private fun talkLine(
++/** The spoken name belongs only to the connected call, never to a discovered stranger. */
++@Composable
++private fun RadioPttStatus(
++    mode: RadioPttMode,
++    name: String,
+     talk: Talk,
+-    name: String,
+-): String =
+-    when (talk) {
+-        is Talk.Recording -> {
+-            val seconds = talk.elapsedMs / 1_000
+-            "Talking %d:%02d".format(seconds / SECONDS_PER_MINUTE, seconds % SECONDS_PER_MINUTE)
+-        }
+-
+-        Talk.Sending -> {
+-            "Sending…"
+-        }
+-
+-        Talk.Hearing -> {
+-            "$name is talking…"
+-        }
+-
+-        is Talk.Idle -> {
+-            when (talk.note) {
+-                Talk.Note.SENT -> "Sent"
+-                Talk.Note.NO_MIC -> "The microphone is busy"
+-                Talk.Note.NOT_SENT -> "Couldn't send that one"
+-                Talk.Note.NO_LINK -> "Not linked, so that one didn't go"
+-                Talk.Note.TOO_SHORT, null -> "Hold to talk"
+-            }
+-        }
+-    }
+-
+-/** Held, it records; let go, it sends; a gesture the system cancels drops the burst. TalkBack gets both as actions. */
++) {
++    val headline =
++        when (mode) {
++            RadioPttMode.CHECKING_ROUTE -> stringResource(R.string.radio_ptt_checking_route)
++            RadioPttMode.NO_ROUTE -> stringResource(R.string.radio_ptt_no_route)
++            RadioPttMode.READY -> stringResource(R.string.radio_ptt_ready)
++            RadioPttMode.RECORDING -> stringResource(R.string.radio_ptt_recording)
++            RadioPttMode.RECEIVING -> stringResource(R.string.radio_ptt_receiving, name)
++            RadioPttMode.SENDING -> stringResource(R.string.radio_ptt_sending)
++            RadioPttMode.SENT_TO_NETWORK -> stringResource(R.string.radio_ptt_sent_to_network)
++            RadioPttMode.TOO_SHORT -> stringResource(R.string.radio_ptt_too_short)
++            RadioPttMode.MICROPHONE_BUSY -> stringResource(R.string.radio_ptt_mic_busy)
++            RadioPttMode.SEND_FAILED -> stringResource(R.string.radio_ptt_send_failed)
++        }
++    val blocked = mode == RadioPttMode.NO_ROUTE || mode == RadioPttMode.MICROPHONE_BUSY || mode == RadioPttMode.SEND_FAILED
++    val active = mode == RadioPttMode.RECORDING || mode == RadioPttMode.RECEIVING
++    Surface(
++        modifier = Modifier.fillMaxWidth().semantics { testTag = "radio_ptt_status" },
++        shape = MaterialTheme.shapes.large,
++        color = when {
++            blocked -> MaterialTheme.colorScheme.errorContainer
++            active -> MaterialTheme.colorScheme.primaryContainer
++            else -> MaterialTheme.colorScheme.surfaceContainerHigh
++        },
++        contentColor = when {
++            blocked -> MaterialTheme.colorScheme.onErrorContainer
++            active -> MaterialTheme.colorScheme.onPrimaryContainer
++            else -> MaterialTheme.colorScheme.onSurface
++        },
++    ) {
++        Row(
++            Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
++            verticalAlignment = Alignment.CenterVertically,
++            horizontalArrangement = Arrangement.spacedBy(10.dp),
++        ) {
++            val icon = when (mode) {
++                RadioPttMode.RECEIVING -> Icons.Filled.VolumeUp
++                RadioPttMode.SENDING -> Icons.Filled.HourglassTop
++                RadioPttMode.RECORDING -> Icons.Filled.Mic
++                else -> Icons.Outlined.Hub
++            }
++            Icon(icon, contentDescription = null, modifier = Modifier.size(24.dp))
++            // Keep the fast-changing recording clock OUT of the live region. Screen readers
++            // should announce the new radio state, not speak every timer tick.
++            Column {
++                Text(
++                    headline,
++                    style = MaterialTheme.typography.titleMedium,
++                    modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
++                )
++                if (talk is Talk.Recording) {
++                    val seconds = talk.elapsedMs / 1_000
++                    Text(
++                        stringResource(R.string.radio_ptt_elapsed, seconds / SECONDS_PER_MINUTE, seconds % SECONDS_PER_MINUTE),
++                        style = MaterialTheme.typography.labelMedium,
++                    )
++                }
++            }
++        }
++    }
++}
++
++/**
++ * Hold to record, release to send; a cancelled gesture discards its burst. While a burst
++ * is sending, a peer is speaking, or no route exists, the control will NOT start another.
++ * Using pointerInput(Unit) is intentional: recomposition from Idle -> Recording must NOT
++ * cancel the in-progress press. UpdatedState supplies the latest canStart at press time.
++ */
+ @Composable
+ private fun TalkButton(
+-    recording: Boolean,
++    ptt: RadioPttState,
+     onTalk: () -> Unit,
+     onTalkSend: () -> Unit,
+     onTalkCancel: () -> Unit,
+@@ -970,28 +1019,44 @@
+     val talk by rememberUpdatedState(onTalk)
+     val send by rememberUpdatedState(onTalkSend)
+     val cancel by rememberUpdatedState(onTalkCancel)
++    val canStart by rememberUpdatedState(ptt.canStart)
++    val recording = ptt.mode == RadioPttMode.RECORDING
++    val label = when {
++        recording -> stringResource(R.string.radio_ptt_release_to_send)
++        ptt.canStart -> stringResource(R.string.radio_ptt_hold_to_talk)
++        else -> stringResource(R.string.radio_ptt_please_wait)
++    }
++    val startLabel = stringResource(R.string.radio_ptt_a11y_start)
++    val stopLabel = stringResource(R.string.radio_ptt_a11y_stop)
+     Column(horizontalAlignment = Alignment.CenterHorizontally) {
+         Surface(
+             shape = CircleShape,
+-            // Never the hang-up's red: green as the answer button, brighter while it records.
+-            color = if (recording) TalkingGreen else AnswerGreen,
+-            contentColor = Color.White,
++            color = when {
++                recording -> TalkingGreen
++                ptt.canStart -> AnswerGreen
++                else -> MaterialTheme.colorScheme.surfaceVariant
++            },
++            contentColor = if (recording || ptt.canStart) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
+             modifier =
+                 Modifier
+                     .size(TalkSize)
+                     .semantics {
+-                        contentDescription = "Hold to talk"
+-                        customActions =
+-                            listOf(
+-                                CustomAccessibilityAction("Start talking") { true.also { talk() } },
+-                                CustomAccessibilityAction("Stop and send") { true.also { send() } },
+-                            )
++                        testTag = "radio_ptt_button"
++                        contentDescription = label
++                        stateDescription = label
++                        customActions = when {
++                            recording -> listOf(CustomAccessibilityAction(stopLabel) { true.also { send() } })
++                            ptt.canStart -> listOf(CustomAccessibilityAction(startLabel) { true.also { talk() } })
++                            else -> emptyList()
++                        }
+                     }.pointerInput(Unit) {
+                         detectTapGestures(
+                             onPress = {
+-                                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+-                                talk()
+-                                if (tryAwaitRelease()) send() else cancel()
++                                if (canStart) {
++                                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
++                                    talk()
++                                    if (tryAwaitRelease()) send() else cancel()
++                                }
+                             },
+                         )
+                     },
+@@ -1000,7 +1065,7 @@
+                 Icon(Icons.Filled.Mic, contentDescription = null, modifier = Modifier.size(48.dp))
+             }
+         }
+-        ButtonLabel(if (recording) "Release to send" else "Hold to talk")
++        ButtonLabel(label)
+     }
+ }
+ 
+--- a/app/src/main/res/values/strings.xml
++++ b/app/src/main/res/values/strings.xml
+@@ -1750,4 +1750,25 @@
+     <string name="radio_hub_call_invalid">No verified private contact for this radio call.</string>
+     <string name="radio_hub_call_disabled">Walkie-talkie is unavailable in this app build.</string>
+     <string name="radio_hub_call_failed">Could not start the radio call. Try again.</string>
++    <!-- REV3: walkie voice states are actual engine/link states, never simulated. -->
++    <string name="radio_ptt_end_call">End</string>
++    <string name="radio_ptt_checking_route">Checking radio route…</string>
++    <string name="radio_ptt_no_route">No route to this contact yet</string>
++    <string name="radio_ptt_ready">Radio ready. Hold to talk.</string>
++    <string name="radio_ptt_recording">Recording and transmitting…</string>
++    <string name="radio_ptt_receiving">%1$s is speaking…</string>
++    <string name="radio_ptt_sending">Sending the last audio chunks…</string>
++    <string name="radio_ptt_sent_to_network">Audio sent to the network; delivery is not confirmed</string>
++    <string name="radio_ptt_too_short">Too short. Hold the button longer.</string>
++    <string name="radio_ptt_mic_busy">Microphone unavailable. Check permissions.</string>
++    <string name="radio_ptt_send_failed">Audio not sent. Try again when linked.</string>
++    <string name="radio_ptt_elapsed">Talking %1$d:%2$02d</string>
++    <string name="radio_ptt_link_missing">No radio route to %1$s yet; reconnecting…</string>
++    <string name="radio_ptt_link_relay">Using an Internet relay to reach %1$s; not offline.</string>
++    <string name="radio_ptt_link_mesh">Reaching %1$s through nearby phones; may be delayed.</string>
++    <string name="radio_ptt_release_to_send">Release to send</string>
++    <string name="radio_ptt_hold_to_talk">Hold to talk</string>
++    <string name="radio_ptt_please_wait">Please wait</string>
++    <string name="radio_ptt_a11y_start">Start talking</string>
++    <string name="radio_ptt_a11y_stop">Stop and send</string>
+ </resources>
+--- a/app/src/main/res/values-pt-rBR/strings.xml
++++ b/app/src/main/res/values-pt-rBR/strings.xml
+@@ -40,4 +40,25 @@
+     <string name="radio_hub_call_invalid">Não existe um contato privado válido para esta chamada.</string>
+     <string name="radio_hub_call_disabled">O walkie-talkie não está disponível nesta versão do aplicativo.</string>
+     <string name="radio_hub_call_failed">Não foi possível iniciar a chamada no rádio. Tente novamente.</string>
++    <!-- REV3: walkie voice states are actual engine/link states, never simulated. -->
++    <string name="radio_ptt_end_call">Encerrar</string>
++    <string name="radio_ptt_checking_route">Verificando a rota de rádio…</string>
++    <string name="radio_ptt_no_route">Sem conexão com este contato</string>
++    <string name="radio_ptt_ready">Rádio pronto. Segure para falar.</string>
++    <string name="radio_ptt_recording">Gravando e transmitindo…</string>
++    <string name="radio_ptt_receiving">%1$s está falando…</string>
++    <string name="radio_ptt_sending">Enviando os últimos trechos de áudio…</string>
++    <string name="radio_ptt_sent_to_network">Áudio enviado à rede; entrega não confirmada</string>
++    <string name="radio_ptt_too_short">Muito curto. Segure o botão por mais tempo.</string>
++    <string name="radio_ptt_mic_busy">Microfone indisponível. Verifique as permissões.</string>
++    <string name="radio_ptt_send_failed">Áudio não enviado. Tente novamente quando houver conexão.</string>
++    <string name="radio_ptt_elapsed">Falando %1$d:%2$02d</string>
++    <string name="radio_ptt_link_missing">Sem rota de rádio até %1$s; procurando conexão…</string>
++    <string name="radio_ptt_link_relay">Usando servidor de internet para alcançar %1$s; não é offline.</string>
++    <string name="radio_ptt_link_mesh">Alcançando %1$s por outros celulares; pode haver atraso.</string>
++    <string name="radio_ptt_release_to_send">Solte para enviar</string>
++    <string name="radio_ptt_hold_to_talk">Segure para falar</string>
++    <string name="radio_ptt_please_wait">Aguarde</string>
++    <string name="radio_ptt_a11y_start">Começar a falar</string>
++    <string name="radio_ptt_a11y_stop">Parar e enviar</string>
+ </resources>
+--- /dev/null
++++ b/app/src/main/java/app/getknit/knit/ui/call/RadioPttState.kt
+@@ -0,0 +1,52 @@
++package app.getknit.knit.ui.call
++
++import app.getknit.knit.call.TalkLink
++
++/**
++ * The on-screen radio state is derived ONLY from Knit's real walkie state and its actual link.
++ * No timer, fake peer, or optimistic delivery confirmation is introduced here.
++ *
++ * A known route permits a new burst even after a failed one; while the remote peer is
++ * speaking or an outgoing burst is being flushed, another press must wait.
++ */
++internal enum class RadioPttMode {
++    CHECKING_ROUTE,
++    NO_ROUTE,
++    READY,
++    RECORDING,
++    RECEIVING,
++    SENDING,
++    SENT_TO_NETWORK,
++    TOO_SHORT,
++    MICROPHONE_BUSY,
++    SEND_FAILED,
++}
++
++internal data class RadioPttState(
++    val mode: RadioPttMode,
++    val canStart: Boolean,
++)
++
++internal fun radioPttState(talk: Talk, link: TalkLink?): RadioPttState {
++    val mode =
++        when (talk) {
++            is Talk.Recording -> RadioPttMode.RECORDING
++            Talk.Hearing -> RadioPttMode.RECEIVING
++            Talk.Sending -> RadioPttMode.SENDING
++            is Talk.Idle ->
++                when {
++                    link == null -> RadioPttMode.CHECKING_ROUTE
++                    link == TalkLink.NONE -> RadioPttMode.NO_ROUTE
++                    talk.note == Talk.Note.SENT -> RadioPttMode.SENT_TO_NETWORK
++                    talk.note == Talk.Note.TOO_SHORT -> RadioPttMode.TOO_SHORT
++                    talk.note == Talk.Note.NO_MIC -> RadioPttMode.MICROPHONE_BUSY
++                    talk.note == Talk.Note.NOT_SENT -> RadioPttMode.SEND_FAILED
++                    talk.note == Talk.Note.NO_LINK -> RadioPttMode.SEND_FAILED
++                    else -> RadioPttMode.READY
++                }
++        }
++    return RadioPttState(
++        mode = mode,
++        canStart = talk is Talk.Idle && link != null && link != TalkLink.NONE,
++    )
++}
+--- /dev/null
++++ b/app/src/test/java/app/getknit/knit/ui/call/RadioPttStateTest.kt
+@@ -0,0 +1,54 @@
++package app.getknit.knit.ui.call
++
++import app.getknit.knit.call.TalkLink
++import org.junit.Assert.assertEquals
++import org.junit.Assert.assertFalse
++import org.junit.Assert.assertTrue
++import org.junit.Test
++
++class RadioPttStateTest {
++    @Test fun `unknown and missing radio routes cannot record`() {
++        assertEquals(RadioPttMode.CHECKING_ROUTE, radioPttState(Talk.Idle(), null).mode)
++        assertFalse(radioPttState(Talk.Idle(), null).canStart)
++        assertEquals(RadioPttMode.NO_ROUTE, radioPttState(Talk.Idle(), TalkLink.NONE).mode)
++        assertFalse(radioPttState(Talk.Idle(), TalkLink.NONE).canStart)
++    }
++
++    @Test fun `direct mesh and relay paths permit a new burst`() {
++        listOf(TalkLink.DIRECT, TalkLink.MESH, TalkLink.SPOOL).forEach { link ->
++            assertEquals(RadioPttMode.READY, radioPttState(Talk.Idle(), link).mode)
++            assertTrue(radioPttState(Talk.Idle(), link).canStart)
++        }
++    }
++
++    @Test fun `recording stays active if route fluctuates`() {
++        assertEquals(RadioPttMode.RECORDING, radioPttState(Talk.Recording(500, 0.3f), TalkLink.NONE).mode)
++        assertFalse(radioPttState(Talk.Recording(500, 0.3f), TalkLink.NONE).canStart)
++    }
++
++    @Test fun `receiving and flushing cannot be interrupted by another press`() {
++        assertEquals(RadioPttMode.RECEIVING, radioPttState(Talk.Hearing, TalkLink.DIRECT).mode)
++        assertFalse(radioPttState(Talk.Hearing, TalkLink.DIRECT).canStart)
++        assertEquals(RadioPttMode.SENDING, radioPttState(Talk.Sending, TalkLink.MESH).mode)
++        assertFalse(radioPttState(Talk.Sending, TalkLink.MESH).canStart)
++    }
++
++    @Test fun `sent only means emitted onto the network`() {
++        assertEquals(RadioPttMode.SENT_TO_NETWORK, radioPttState(Talk.Idle(Talk.Note.SENT), TalkLink.DIRECT).mode)
++        assertTrue(radioPttState(Talk.Idle(Talk.Note.SENT), TalkLink.DIRECT).canStart)
++    }
++
++    @Test fun `microphone errors and short audio allow retry if route exists`() {
++        val expected = mapOf(
++            Talk.Note.NO_MIC to RadioPttMode.MICROPHONE_BUSY,
++            Talk.Note.NOT_SENT to RadioPttMode.SEND_FAILED,
++            Talk.Note.NO_LINK to RadioPttMode.SEND_FAILED,
++            Talk.Note.TOO_SHORT to RadioPttMode.TOO_SHORT,
++        )
++        expected.forEach { (note, mode) ->
++            assertEquals(mode, radioPttState(Talk.Idle(note), TalkLink.DIRECT).mode)
++            assertTrue(radioPttState(Talk.Idle(note), TalkLink.DIRECT).canStart)
++            assertFalse(radioPttState(Talk.Idle(note), TalkLink.NONE).canStart)
++        }
++    }
++}
+--- /dev/null
++++ b/RADIO_MESH_REV3.md
+@@ -0,0 +1,51 @@
++# Rádio Mesh REV3 — PTT real, sem prometer voz em grupo
++
++## O que foi implementado
++
++- Estados visuais da chamada **derivados** de `WalkieTalk.talk` e `WalkieTalk.link`, sem simulação:
++  `READY`, `RECORDING`, `RECEIVING`, `SENDING`, `NO_ROUTE` e erros.
++- A tela indica quando **o contato conectado está falando**, quando o aparelho está
++  gravando/transmitindo e quando os pacotes estão sendo enviados.
++- Um novo toque não inicia gravação se ainda não há rota, o outro aparelho está
++  falando ou o áudio anterior ainda está sendo enviado.
++- O gesto PTT usa `pointerInput(Unit)` e `rememberUpdatedState` para não perder
++  a pressão longa quando o estado muda de pronto para gravando.
++- Texto do rádio localizado em pt-BR, inclusive erros de microfone, estado da rota
++  e acessibilidade (ações de iniciar/finalizar transmissão).
++- Alertas diferenciam **rota direta**, **mesh por saltos** e **relay pela Internet**.
++  Um relay via Internet não deve ser apresentado como comunicação totalmente offline.
++- Testes unitários para o controle de PTT e seus estados.
++
++## Limites verificados no código
++
++- Ainda é uma chamada walkie **1:1** de Knit; **não** transmite voz para uma sala.
++- `SENT` significa que o áudio foi entregue ao transporte local para transmissão;
++  não é confirmação de que o destinatário ouviu.
++- O máximo de uma rajada é definido em `WalkiePolicy.MAX_BURST_MS` (60 s).
++- A REV3 **não** altera `TalkWire`, chaves criptográficas, formatos de frame,
++  retransmissão, nem política de armazenamento.
++
++## REV4 — arquitetura proposta, não implementada
++
++Para canais de voz com várias pessoas, não basta reutilizar `CallManager.start(peerId)`:
++precisamos de participantes autenticados, convite/ingresso, controle de turno (PTT),
++criptografia e rekey em mudanças de membros, deduplicação por `roomId+burstId+chunkId`,
++TTL, limites de banda por rádio e política de replay/retentativa. Mantenha o canal
++fechado por padrão e documente alcance/latência sob BLE e Wi-Fi Aware. Só anunciar
++voz de grupo após testes em 3+ aparelhos reais, com verificações de perdas e permissão.
++
++## Testes sugeridos em aparelhos físicos
++
++1. Dois Androids compatíveis, sem dados móveis e sem Wi-Fi conectado à Internet,
++   permitir Bluetooth/Wi-Fi Aware e microfone.
++2. Iniciar chamada pelo botão da central; testar pressionar, segurar por 2 s, soltar,
++   cancelar deslizando/retirando o foco, e repetir rapidamente.
++3. Testar dois aparelhos tentando transmitir, saída de alcance e reconexão.
++4. Checar TalkBack, rotação, headset e Android suspendendo o app.
++5. Confirmar que rota `SPOOL` usa Internet e que NÃO é anunciada como offline.
++
++## Compilação
++
++Gradle wrapper: `./gradlew :app:assembleDebug` e
++`./gradlew :app:testDebugUnitTest --tests app.getknit.knit.ui.call.RadioPttStateTest`
++(requer JDK, Android SDK, Gradle e dependências disponíveis).
