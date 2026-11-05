@@ -1,0 +1,49 @@
+name: Completar fonte NÓS (base Knit 2.10.2)
+
+on:
+  push:
+    paths:
+      - '.github/workflows/nos-completar-fonte.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: nos-completar-fonte
+  cancel-in-progress: false
+
+jobs:
+  completar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout do NÓS
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+          fetch-depth: 1
+      - name: Obter base oficial exata Knit 2.10.2
+        run: |
+          git clone --depth 1 --branch v2.10.2 https://github.com/getknit/knit.git /tmp/knit-2.10.2
+          test "$(git -C /tmp/knit-2.10.2 rev-parse --short HEAD)" = "96b8d79" || {
+            echo "O tag Knit v2.10.2 mudou: abortando por seguranca."
+            exit 1
+          }
+      - name: Repor somente arquivos ausentes
+        run: |
+          rsync -a --ignore-existing --exclude='.git/' --exclude='.github/workflows/' /tmp/knit-2.10.2/ ./
+          echo "Arquivos regulares totais: $(find . -path './.git' -prune -o -type f -print | wc -l)"
+          test -f app/src/main/java/app/getknit/knit/ui/KnitApp.kt
+          test -f gradle/wrapper/gradle-wrapper.jar
+          test -f app/src/main/java/app/getknit/knit/mesh/MeshService.kt || true
+      - name: Criar commit sem apagar a REV5
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "Fonte-base ja completo"
+            exit 0
+          fi
+          git commit -m "chore: completar arquivos ausentes da base Knit 2.10.2 [skip ci]"
+          git push origin HEAD:main
