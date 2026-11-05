@@ -1,0 +1,54 @@
+name: NÓS REV6 — Aplicar logo neon e ícones Android
+
+on:
+  push:
+    paths:
+      - '.github/workflows/nos-aplicar-artes.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  assets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          persist-credentials: true
+      - name: Conferir arquivo de imagens
+        run: |
+          base64 --decode .nos/assets/nos-rev6-neon-icons.webpzip.b64 > /tmp/nos-rev6-neon-icons.webpzip
+          echo "17246eebf535ab42ae4ff94fa43c85b9c5b435564f42c5a9cc625d6449303d9c  /tmp/nos-rev6-neon-icons.webpzip" | sha256sum -c -
+      - name: Restaurar as imagens da REV6 em recursos Android
+        run: |
+          python -m pip install --quiet Pillow
+          python - <<'PY'
+          from pathlib import Path
+          from zipfile import ZipFile
+          from io import BytesIO
+          from PIL import Image
+          source = Path('/tmp/nos-rev6-neon-icons.webpzip')
+          n=0
+          with ZipFile(source) as z:
+              for name in z.namelist():
+                  if not name.startswith('app/src/main/res/') or not name.endswith('.png.webp') or '..' in Path(name).parts:
+                      raise SystemExit('Arquivo inesperado no pacote de imagens: '+name)
+                  dest = Path(name[:-5])
+                  dest.parent.mkdir(parents=True, exist_ok=True)
+                  with Image.open(BytesIO(z.read(name))) as im:
+                      im.save(dest, format='PNG', optimize=True)
+                  n+=1
+          if n != 16:
+              raise SystemExit('Quantidade inesperada de imagens: '+str(n))
+          print('NÓS REV6: imagens aplicadas =',n)
+          PY
+      - name: Publicar a identidade NÓS neon
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/src/main/res
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "style: aplicar identidade neon NÓS aos ícones e wordmark [skip ci]"
+          git push origin HEAD:main
