@@ -1772,7 +1772,7 @@
     <string name="radio_ptt_a11y_start">Start talking</string>
     <string name="radio_ptt_a11y_stop">Stop and send</string>
     <!-- REV4: recorded, store-and-forward group voice channels (not live multi-party PTT). -->
-    <string name="radio_group_title">Group radio channels</string>
+    <string name="radio_group_title">Recorded group voice</string>
     <string name="radio_group_instructions">Select a group to record a voice message. Hold the microphone in the group chat, release, review, then tap Send.</string>
     <string name="radio_group_async_disclaimer">Recorded voice messages, not a live group call. Delivery can be delayed until a mesh route exists.</string>
     <string name="radio_group_create">Create voice group</string>
@@ -1801,4 +1801,29 @@
     <string name="nos_group_queued">Audio queued for group. Delivery is not confirmed.</string>
     <string name="nos_group_fast_ptt">Press and send</string>
     <string name="nos_radio_experimental">Group PTT (experimental)</string>
+
+    <!-- NÓS REV6: separate low-latency LAN multicast PTT, requires a shared local Wi-Fi/hotspot. -->
+    <string name="nos_live_title">Live local radio</string>
+    <string name="nos_live_open">Open live channel</string>
+    <string name="nos_live_short_explanation">Live group PTT on the same local Wi-Fi network. Voice notes in chats remain available.</string>
+    <string name="nos_live_transport">Local Wi-Fi radio · no internet</string>
+    <string name="nos_live_explanation">Phones must use the same Wi-Fi LAN or compatible hotspot. Enter the same channel and password on every phone. This does not use the multi-hop Mesh or LoRa.</string>
+    <string name="nos_live_security">Audio packets are encrypted with a channel password. People with that password can listen and transmit; this is separate from Knit contacts.</string>
+    <string name="nos_live_channel">Channel name</string>
+    <string name="nos_live_password">Shared channel password (10+ characters)</string>
+    <string name="nos_live_join">Join live channel</string>
+    <string name="nos_live_connecting">Connecting…</string>
+    <string name="nos_live_same_credentials">Share the channel name and password securely with other participants.</string>
+    <string name="nos_live_connected">Channel: %1$s</string>
+    <string name="nos_live_peers">%1$d other phone(s) detected</string>
+    <string name="nos_live_speaking">Transmitting live voice…</string>
+    <string name="nos_live_listening">Receiving voice from radio %1$s</string>
+    <string name="nos_live_alone">Waiting for another radio with the same password…</string>
+    <string name="nos_live_ready">Ready. Hold to speak.</string>
+    <string name="nos_live_release">RELEASE TO STOP</string>
+    <string name="nos_live_hold">HOLD TO TALK</string>
+    <string name="nos_live_leave">Leave channel</string>
+    <string name="nos_live_limit">Experimental: local IP multicast can be blocked by routers or hotspots. Voice is not stored. No unlimited range, no guaranteed exclusive speaker across disconnected devices, no LoRa audio. Tested on-device only when explicitly verified.</string>
+    <string name="nos_tab_messages">Messages</string>
+    <string name="nos_tab_radio">Radio</string>
 </resources>

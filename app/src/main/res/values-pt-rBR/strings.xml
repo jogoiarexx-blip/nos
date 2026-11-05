@@ -21,7 +21,7 @@
     <string name="radio_hub_network_details">Ver detalhes da rede</string>
     <string name="radio_hub_walkie_title">Walkie-talkie com contato</string>
     <string name="radio_hub_walkie_instructions">Escolha um contato e toque em Chamar no rádio. Quando a chamada Mesh conectar, segure o botão do microfone para falar.</string>
-    <string name="radio_hub_walkie_limits">A voz depende de aparelhos compatíveis. Ainda não há canal público de voz ao vivo: a sala Próximos abaixo é para mensagens.</string>
+    <string name="radio_hub_walkie_limits">A voz depende de aparelhos compatíveis. Para canais ao vivo em grupo, use o rádio Wi-Fi local acima. A sala Próximos é somente para mensagens.</string>
     <string name="radio_hub_pick_contact">Escolher contato</string>
     <string name="radio_hub_nearby_messages">Abrir sala de mensagens Próximos</string>
     <string name="radio_hub_recent_people">Conversas recentes</string>
@@ -62,7 +62,7 @@
     <string name="radio_ptt_a11y_start">Começar a falar</string>
     <string name="radio_ptt_a11y_stop">Parar e enviar</string>
     <!-- REV4: recorded, store-and-forward group voice channels (not live multi-party PTT). -->
-    <string name="radio_group_title">Canais de rádio em grupo</string>
+    <string name="radio_group_title">Áudios de grupo (gravados)</string>
     <string name="radio_group_instructions">Entre em um grupo e segure o microfone para gravar. Solte, confira o áudio e toque em Enviar.</string>
     <string name="radio_group_async_disclaimer">Áudio gravado, não chamada ao vivo. A entrega pode aguardar uma rota Mesh disponível.</string>
     <string name="radio_group_create">Criar grupo de voz</string>
@@ -72,7 +72,7 @@
     <string name="radio_group_select_two">Selecione pelo menos duas pessoas para criar um grupo.</string>
 
     <!-- NÓS REV5: fast group voice bursts. Separate from ordinary reviewed voice notes. -->
-    <string name="nos_group_title">Rádio de grupo</string>
+    <string name="nos_group_title">Rajadas gravadas em grupo</string>
     <string name="nos_group_members">%1$d participantes no grupo</string>
     <string name="nos_group_disclaimer">Apertar e enviar: segure para gravar uma rajada curta e solte para enviá-la ao grupo. A entrega ocorre pelo Mesh quando houver rota, podendo demorar. Não é voz ao vivo.</string>
     <string name="nos_group_floor_local">Controle de turno desta versão: apenas neste celular. Outros aparelhos ainda não recebem reservas de microfone em tempo real.</string>
@@ -91,4 +91,29 @@
     <string name="nos_group_queued">Áudio colocado na fila de mensagens do grupo. Entrega não confirmada.</string>
     <string name="nos_group_fast_ptt">Apertar e enviar</string>
     <string name="nos_radio_experimental">PTT de grupo (experimental)</string>
+
+    <!-- REV6: rádio ao vivo local, separado das conversas e dos áudios gravados. -->
+    <string name="nos_live_title">Rádio ao vivo · Wi-Fi local</string>
+    <string name="nos_live_open">Entrar em um canal ao vivo</string>
+    <string name="nos_live_short_explanation">PTT em grupo ao vivo na mesma rede Wi-Fi local. Os áudios gravados continuam nas conversas.</string>
+    <string name="nos_live_transport">Ondas de rádio Wi-Fi · sem internet</string>
+    <string name="nos_live_explanation">Os celulares precisam estar na mesma rede Wi-Fi ou hotspot compatível. Todos usam o mesmo canal e senha. Este modo não atravessa a rede Mesh nem usa LoRa.</string>
+    <string name="nos_live_security">O áudio é criptografado com a senha do canal. Quem souber a senha poderá ouvir e falar; este modo não usa a lista de contatos do Knit.</string>
+    <string name="nos_live_channel">Nome do canal</string>
+    <string name="nos_live_password">Senha compartilhada (10 caracteres ou mais)</string>
+    <string name="nos_live_join">Entrar no canal</string>
+    <string name="nos_live_connecting">Conectando…</string>
+    <string name="nos_live_same_credentials">Compartilhe o nome e a senha do canal por um meio seguro.</string>
+    <string name="nos_live_connected">Canal: %1$s</string>
+    <string name="nos_live_peers">Outros celulares detectados: %1$d</string>
+    <string name="nos_live_speaking">Transmitindo voz ao vivo…</string>
+    <string name="nos_live_listening">Recebendo voz do rádio %1$s</string>
+    <string name="nos_live_alone">Aguardando outros rádios com a mesma senha…</string>
+    <string name="nos_live_ready">Pronto. Segure para falar.</string>
+    <string name="nos_live_release">SOLTE PARA PARAR</string>
+    <string name="nos_live_hold">SEGURE PARA FALAR</string>
+    <string name="nos_live_leave">Sair do canal</string>
+    <string name="nos_live_limit">Experimental: roteadores e hotspots podem bloquear o tráfego multicast. A voz não é gravada. Não há alcance ilimitado, exclusividade garantida em redes desconectadas ou áudio por LoRa. Testes em aparelhos reais ainda são necessários.</string>
+    <string name="nos_tab_messages">Mensagens</string>
+    <string name="nos_tab_radio">Rádio</string>
 </resources>

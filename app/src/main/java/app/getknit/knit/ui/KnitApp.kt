@@ -69,6 +69,10 @@ import app.getknit.knit.ui.lora.LoraRadioScreen
 import app.getknit.knit.ui.onboarding.OnboardingScreen
 import app.getknit.knit.ui.profile.ProfileDetailsScreen
 import app.getknit.knit.ui.profile.ProfileScreen
+import app.getknit.knit.ui.radiohub.RadioHubScreen
+import app.getknit.knit.ui.radiohub.GroupPttScreen
+import app.getknit.knit.ui.radiohub.LanRadioScreen
+import app.getknit.knit.ui.radiohub.RadioDialViewModel
 import app.getknit.knit.ui.relay.InternetRelayScreen
 import app.getknit.knit.ui.relay.RelayDetailScreen
 import app.getknit.knit.ui.relay.RelayInviteInbox
@@ -97,6 +101,13 @@ private const val NAV_SLIDE_DIVISOR = 24
 private object Routes {
     const val ONBOARDING = "onboarding"
     const val CHAT_LIST = "chatlist"
+    const val RADIO_HUB = "radiohub"
+    const val RADIO_LAN_LIVE = "radioLanLive"
+    const val GROUP_PTT = "radio/ptt/{groupId}"
+
+    fun groupPtt(id: String) = "radio/ptt/${Uri.encode(id)}"
+    const val RADIO_CONTACTS = "radioContacts"
+    const val RADIO_GROUP_CONTACTS = "radioGroupContacts"
     const val CONTACTS = "contacts"
     const val SETTINGS = "settings"
     const val PROFILE = "profile"
@@ -414,11 +425,65 @@ fun KnitApp(startRoute: String? = null) {
                     onNewMessage = { navController.navigate(Routes.CONTACTS) },
                     onOpenSettings = { navController.navigate(Routes.SETTINGS) },
                     onOpenYourMesh = { navController.navigate(Routes.YOUR_MESH) },
+                    onOpenRadioHub = { navController.navigate(Routes.RADIO_HUB) },
                     onOpenDiagnostics = { navController.navigate(Routes.DIAGNOSTICS) },
                     onOpenMessageRequests = { navController.navigate(Routes.MESSAGE_REQUESTS) },
                     onOpenDonate = { navController.navigate(Routes.DONATE) },
                     onOpenAddContact = { navController.navigate(Routes.ADD_CONTACT) },
                     onOpenWhatsNew = { navController.navigate(Routes.WHATS_NEW) },
+                )
+            }
+            composable(Routes.RADIO_HUB) { entry ->
+                RadioHubScreen(
+                    onBack = { navController.popFrom(entry) },
+                    onOpenConversation = { id -> navController.navigate(Routes.chat(id)) },
+                    onPickContact = { navController.navigate(Routes.RADIO_CONTACTS) },
+                    onCreateGroup = { navController.navigate(Routes.RADIO_GROUP_CONTACTS) },
+                    onOpenGroupPtt = { id -> navController.navigate(Routes.groupPtt(id)) },
+                    onOpenLiveRadio = { navController.navigate(Routes.RADIO_LAN_LIVE) },
+                    onOpenYourMesh = { navController.navigate(Routes.YOUR_MESH) },
+                )
+            }
+            composable(Routes.RADIO_LAN_LIVE) { entry ->
+                LanRadioScreen(onBack = { navController.popFrom(entry) })
+            }
+            composable(
+                Routes.GROUP_PTT,
+                arguments = listOf(navArgument("groupId") { type = NavType.StringType }),
+            ) { entry ->
+                val groupId = requireNotNull(entry.arguments?.getString("groupId"))
+                GroupPttScreen(
+                    groupId = groupId,
+                    onBack = { navController.popFrom(entry) },
+                    onOpenRecorded = { id -> navController.navigate(Routes.chat(id)) },
+                )
+            }
+            composable(Routes.RADIO_GROUP_CONTACTS) { entry ->
+                ContactsScreen(
+                    onBack = { navController.popFrom(entry) },
+                    onPick = { conversationId ->
+                        navController.navigate(Routes.chat(conversationId)) {
+                            popUpTo(Routes.RADIO_GROUP_CONTACTS) { inclusive = true }
+                        }
+                    },
+                    onAddContact = { navController.navigate(Routes.ADD_CONTACT) },
+                    groupOnly = true,
+                )
+            }
+            composable(Routes.RADIO_CONTACTS) { entry ->
+                val dialer: RadioDialViewModel = koinViewModel()
+                val context = LocalContext.current
+                LaunchedEffect(dialer, entry) {
+                    dialer.events.collect { event ->
+                        Toast.makeText(context, context.getString(event.message), Toast.LENGTH_LONG).show()
+                        if (event.started) navController.popFrom(entry)
+                    }
+                }
+                ContactsScreen(
+                    onBack = { navController.popFrom(entry) },
+                    onPick = dialer::dial,
+                    onAddContact = { navController.navigate(Routes.ADD_CONTACT) },
+                    singleSelectionOnly = true,
                 )
             }
             composable(Routes.CONTACTS) { entry ->

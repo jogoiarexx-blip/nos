@@ -75,6 +75,8 @@ fun ContactsScreen(
     onPick: (conversationId: String) -> Unit,
     onAddContact: () -> Unit = {},
     viewModel: ContactsViewModel = koinViewModel(),
+    singleSelectionOnly: Boolean = false,
+    groupOnly: Boolean = false,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
@@ -97,6 +99,8 @@ fun ContactsScreen(
         onCreateGroup = viewModel::createGroup,
         onGroupFull = { Toast.makeText(context, groupFullMessage, Toast.LENGTH_SHORT).show() },
         onAddContact = onAddContact,
+        singleSelectionOnly = singleSelectionOnly,
+        groupOnly = groupOnly,
     )
 }
 
@@ -109,12 +113,17 @@ internal fun ContactsScreenContent(
     onCreateGroup: (memberIds: List<String>) -> Unit,
     onGroupFull: () -> Unit,
     onAddContact: () -> Unit = {},
+    singleSelectionOnly: Boolean = false,
+    groupOnly: Boolean = false,
 ) {
     val selected = remember { mutableStateListOf<String>() }
 
     fun toggle(nodeId: String) {
         if (nodeId in selected) {
             selected.remove(nodeId)
+        } else if (singleSelectionOnly) {
+            selected.clear()
+            selected.add(nodeId)
         } else if (selected.size >= ContactsViewModel.MAX_OTHER_MEMBERS) {
             onGroupFull()
         } else {
@@ -133,7 +142,7 @@ internal fun ContactsScreenContent(
                         )
                     }
                 },
-                title = { Text(stringResource(R.string.contacts_title)) },
+                title = { Text(stringResource(when { singleSelectionOnly -> R.string.radio_hub_pick_contact; groupOnly -> R.string.radio_group_create; else -> R.string.contacts_title })) },
                 actions = {
                     IconButton(onClick = onAddContact, modifier = Modifier.size(48.dp).testTag("contacts_add")) {
                         Icon(Icons.Filled.PersonAdd, contentDescription = stringResource(R.string.add_contact_title))
@@ -142,10 +151,10 @@ internal fun ContactsScreenContent(
             )
         },
         floatingActionButton = {
-            if (selected.isNotEmpty()) {
+            if (groupPickerCanConfirm(selected.size, groupOnly)) {
                 FloatingActionButton(
                     onClick = {
-                        if (selected.size == 1) {
+                        if (!groupOnly && (singleSelectionOnly || selected.size == 1)) {
                             onPickSingle(selected.first())
                         } else {
                             onCreateGroup(selected.toList())
@@ -155,7 +164,7 @@ internal fun ContactsScreenContent(
                 ) {
                     Icon(
                         Icons.Filled.Check,
-                        contentDescription = stringResource(R.string.contacts_start_chat),
+                        contentDescription = stringResource(if (singleSelectionOnly) R.string.radio_hub_call_peer else R.string.contacts_start_chat),
                     )
                 }
             }
@@ -166,53 +175,63 @@ internal fun ContactsScreenContent(
         // is playing over. Drawing the "no contacts yet" empty state there flashed a centred column that
         // the real rows then replaced in one frame, which is what made the transition read as jagged; show
         // the same-shaped skeleton instead and cross-fade to whichever state actually arrives.
-        val listEnter = KnitMotion.enterFade()
-        val listExit = KnitMotion.exitFade()
-        AnimatedContent(
-            targetState = state.isLoading,
-            transitionSpec = { listEnter togetherWith listExit },
-            label = "contactsLoading",
-            modifier = Modifier.fillMaxSize().padding(padding),
-        ) { loading ->
-            when {
-                loading -> {
-                    ContactsSkeleton(modifier = Modifier.fillMaxSize())
-                }
+        Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+            if (groupOnly) {
+                Text(
+                    stringResource(R.string.radio_group_select_two),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp),
+                    textAlign = TextAlign.Center,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            val listEnter = KnitMotion.enterFade()
+            val listExit = KnitMotion.exitFade()
+            AnimatedContent(
+                targetState = state.isLoading,
+                transitionSpec = { listEnter togetherWith listExit },
+                label = "contactsLoading",
+                modifier = Modifier.weight(1f).fillMaxWidth(),
+            ) { loading ->
+                when {
+                    loading -> {
+                        ContactsSkeleton(modifier = Modifier.fillMaxSize())
+                    }
 
-                state.contacts.isEmpty() -> {
-                    Box(
-                        modifier = Modifier.fillMaxSize().padding(32.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(16.dp),
+                    state.contacts.isEmpty() -> {
+                        Box(
+                            modifier = Modifier.fillMaxSize().padding(32.dp),
+                            contentAlignment = Alignment.Center,
                         ) {
-                            Text(
-                                text = stringResource(R.string.contacts_empty),
-                                textAlign = TextAlign.Center,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                            OutlinedButton(onClick = onAddContact, modifier = Modifier.testTag("contacts_add_empty")) {
-                                Icon(Icons.Filled.PersonAdd, contentDescription = null)
-                                Spacer(Modifier.width(8.dp))
-                                Text(stringResource(R.string.add_contact_title))
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(16.dp),
+                            ) {
+                                Text(
+                                    text = stringResource(R.string.contacts_empty),
+                                    textAlign = TextAlign.Center,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                                OutlinedButton(onClick = onAddContact, modifier = Modifier.testTag("contacts_add_empty")) {
+                                    Icon(Icons.Filled.PersonAdd, contentDescription = null)
+                                    Spacer(Modifier.width(8.dp))
+                                    Text(stringResource(R.string.add_contact_title))
+                                }
                             }
                         }
                     }
-                }
 
-                else -> {
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(vertical = 4.dp),
-                    ) {
-                        items(state.contacts, key = { it.nodeId }) { contact ->
-                            ContactRow(
-                                contact = contact,
-                                selected = contact.nodeId in selected,
-                                onClick = { toggle(contact.nodeId) },
-                            )
+                    else -> {
+                        LazyColumn(
+                            modifier = Modifier.fillMaxSize(),
+                            contentPadding = PaddingValues(vertical = 4.dp),
+                        ) {
+                            items(state.contacts, key = { it.nodeId }) { contact ->
+                                ContactRow(
+                                    contact = contact,
+                                    selected = contact.nodeId in selected,
+                                    onClick = { toggle(contact.nodeId) },
+                                )
+                            }
                         }
                     }
                 }
@@ -308,6 +327,7 @@ private fun ContactRow(
             contentDescription = null,
             tint = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
         )
+        }
     }
 }
 

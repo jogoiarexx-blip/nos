@@ -7,6 +7,8 @@
          discovery needs ACCESS_FINE_LOCATION (declared below, shared with the BLE scan and with location sharing). -->
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
+    <!-- REV6: receive encrypted live PTT datagrams on a local multicast Wi-Fi channel. -->
+    <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
     <uses-permission android:name="android.permission.NEARBY_WIFI_DEVICES"
         android:usesPermissionFlags="neverForLocation"
         tools:ignore="UnusedAttribute" />

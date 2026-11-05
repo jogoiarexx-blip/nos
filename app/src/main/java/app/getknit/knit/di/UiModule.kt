@@ -43,6 +43,8 @@ import app.getknit.knit.ui.lora.LoraRadioViewModel
 import app.getknit.knit.ui.onboarding.OnboardingViewModel
 import app.getknit.knit.ui.profile.ProfileDetailsViewModel
 import app.getknit.knit.ui.profile.ProfileViewModel
+import app.getknit.knit.ui.radiohub.RadioDialViewModel
+import app.getknit.knit.ui.radiohub.GroupPttViewModel
 import app.getknit.knit.ui.relay.InternetRelayViewModel
 import app.getknit.knit.ui.requests.MessageRequestsViewModel
 import app.getknit.knit.ui.search.SearchViewModel
@@ -108,6 +110,24 @@ val uiModule =
             )
         }
         viewModel { ContactsViewModel(get(), get(), get(), get(), get(), get()) }
+        // The Radio Hub dials via the existing CallManager, only in call-enabled builds.
+        viewModel {
+            GroupPttViewModel(
+                groups = get(),
+                attachments = get(),
+                mesh = get(),
+                identity = get(),
+                context = androidContext(),
+            )
+        }
+        viewModel {
+            RadioDialViewModel(
+                peers = get(),
+                settings = get(),
+                identity = get(),
+                calls = if (CALLS_WIRED) get<CallManager>() else null,
+            )
+        }
         viewModel {
             SearchViewModel(
                 get(),

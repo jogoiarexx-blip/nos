@@ -46,6 +46,8 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ClosedCaption
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MicOff
+import androidx.compose.material.icons.filled.HourglassTop
+import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material.icons.outlined.ClosedCaptionDisabled
 import androidx.compose.material.icons.outlined.Cloud
 import androidx.compose.material.icons.outlined.Hub
@@ -89,6 +91,8 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -833,7 +837,7 @@ private fun Controls(
                 verticalAlignment = Alignment.Bottom,
             ) {
                 CallToggle("Mute", if (state.muted) Icons.Filled.MicOff else Icons.Filled.Mic, state.muted, onMute)
-                CallAction("End", Icons.Filled.CallEnd, HangUpRed, onHangUp)
+                CallAction(stringResource(R.string.radio_ptt_end_call), Icons.Filled.CallEnd, HangUpRed, onHangUp)
                 AudioRouteButton(routing, onRoute)
             }
         }
@@ -872,15 +876,16 @@ private fun WalkieControls(
             )
             Spacer(Modifier.height(8.dp))
         }
-        Text(talkLine(talk, name), style = MaterialTheme.typography.titleMedium, textAlign = TextAlign.Center)
-        Spacer(Modifier.height(24.dp))
+        val ptt = radioPttState(talk, link)
+        RadioPttStatus(ptt.mode, name, talk)
+        Spacer(Modifier.height(16.dp))
         // The talk button takes the centre a call screen gives its red hang-up; the hang-up steps aside to the start.
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
             Box(Modifier.weight(1f), contentAlignment = Alignment.BottomCenter) {
-                CallAction("End", Icons.Filled.CallEnd, HangUpRed, onHangUp)
+                CallAction(stringResource(R.string.radio_ptt_end_call), Icons.Filled.CallEnd, HangUpRed, onHangUp)
             }
             Box(Modifier.weight(1f), contentAlignment = Alignment.BottomCenter) {
-                TalkButton(recording = talk is Talk.Recording, onTalk, onTalkSend, onTalkCancel)
+                TalkButton(ptt = ptt, onTalk = onTalk, onTalkSend = onTalkSend, onTalkCancel = onTalkCancel)
             }
             Box(Modifier.weight(1f), contentAlignment = Alignment.BottomCenter) {
                 AudioRouteButton(routing, onRoute)
@@ -890,9 +895,8 @@ private fun WalkieControls(
 }
 
 /**
- * Why a burst may not reach the peer (§3.11): no link this phone can see — the radios are asked for one meanwhile — or
- * only a path through other phones, which works but is slower and less sure, or no radio path at all but a relay that
- * carries the bursts (§2.7), which works while both phones stay online.
+ * The link notice names the REAL path: relay use is not offline, and a mesh hop is not
+ * a direct connection. This matters when someone thinks the radio reaches any distance.
  */
 @Composable
 private fun LinkNotice(
@@ -904,6 +908,7 @@ private fun LinkNotice(
         shape = MaterialTheme.shapes.medium,
         color = if (none) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.secondaryContainer,
         contentColor = if (none) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onSecondaryContainer,
+        modifier = Modifier.fillMaxWidth(),
     ) {
         Row(
             Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
@@ -919,9 +924,9 @@ private fun LinkNotice(
             Icon(icon, contentDescription = null, modifier = Modifier.size(20.dp))
             Text(
                 when (link) {
-                    TalkLink.NONE -> "Not linked to $name yet. Linking…"
-                    TalkLink.SPOOL -> "No radio link to $name. Going through your relay"
-                    else -> "No direct link to $name. Going through other phones"
+                    TalkLink.NONE -> stringResource(R.string.radio_ptt_link_missing, name)
+                    TalkLink.SPOOL -> stringResource(R.string.radio_ptt_link_relay, name)
+                    else -> stringResource(R.string.radio_ptt_link_mesh, name)
                 },
                 style = MaterialTheme.typography.bodyMedium,
             )
@@ -929,39 +934,83 @@ private fun LinkNotice(
     }
 }
 
-private fun talkLine(
-    talk: Talk,
+/** The spoken name belongs only to the connected call, never to a discovered stranger. */
+@Composable
+private fun RadioPttStatus(
+    mode: RadioPttMode,
     name: String,
-): String =
-    when (talk) {
-        is Talk.Recording -> {
-            val seconds = talk.elapsedMs / 1_000
-            "Talking %d:%02d".format(seconds / SECONDS_PER_MINUTE, seconds % SECONDS_PER_MINUTE)
+    talk: Talk,
+) {
+    val headline =
+        when (mode) {
+            RadioPttMode.CHECKING_ROUTE -> stringResource(R.string.radio_ptt_checking_route)
+            RadioPttMode.NO_ROUTE -> stringResource(R.string.radio_ptt_no_route)
+            RadioPttMode.READY -> stringResource(R.string.radio_ptt_ready)
+            RadioPttMode.RECORDING -> stringResource(R.string.radio_ptt_recording)
+            RadioPttMode.RECEIVING -> stringResource(R.string.radio_ptt_receiving, name)
+            RadioPttMode.SENDING -> stringResource(R.string.radio_ptt_sending)
+            RadioPttMode.SENT_TO_NETWORK -> stringResource(R.string.radio_ptt_sent_to_network)
+            RadioPttMode.TOO_SHORT -> stringResource(R.string.radio_ptt_too_short)
+            RadioPttMode.MICROPHONE_BUSY -> stringResource(R.string.radio_ptt_mic_busy)
+            RadioPttMode.SEND_FAILED -> stringResource(R.string.radio_ptt_send_failed)
         }
-
-        Talk.Sending -> {
-            "Sending…"
-        }
-
-        Talk.Hearing -> {
-            "$name is talking…"
-        }
-
-        is Talk.Idle -> {
-            when (talk.note) {
-                Talk.Note.SENT -> "Sent"
-                Talk.Note.NO_MIC -> "The microphone is busy"
-                Talk.Note.NOT_SENT -> "Couldn't send that one"
-                Talk.Note.NO_LINK -> "Not linked, so that one didn't go"
-                Talk.Note.TOO_SHORT, null -> "Hold to talk"
+    val blocked = mode == RadioPttMode.NO_ROUTE || mode == RadioPttMode.MICROPHONE_BUSY || mode == RadioPttMode.SEND_FAILED
+    val active = mode == RadioPttMode.RECORDING || mode == RadioPttMode.RECEIVING
+    Surface(
+        modifier = Modifier.fillMaxWidth().semantics { testTag = "radio_ptt_status" },
+        shape = MaterialTheme.shapes.large,
+        color = when {
+            blocked -> MaterialTheme.colorScheme.errorContainer
+            active -> MaterialTheme.colorScheme.primaryContainer
+            else -> MaterialTheme.colorScheme.surfaceContainerHigh
+        },
+        contentColor = when {
+            blocked -> MaterialTheme.colorScheme.onErrorContainer
+            active -> MaterialTheme.colorScheme.onPrimaryContainer
+            else -> MaterialTheme.colorScheme.onSurface
+        },
+    ) {
+        Row(
+            Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            val icon = when (mode) {
+                RadioPttMode.RECEIVING -> Icons.Filled.VolumeUp
+                RadioPttMode.SENDING -> Icons.Filled.HourglassTop
+                RadioPttMode.RECORDING -> Icons.Filled.Mic
+                else -> Icons.Outlined.Hub
+            }
+            Icon(icon, contentDescription = null, modifier = Modifier.size(24.dp))
+            // Keep the fast-changing recording clock OUT of the live region. Screen readers
+            // should announce the new radio state, not speak every timer tick.
+            Column {
+                Text(
+                    headline,
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+                )
+                if (talk is Talk.Recording) {
+                    val seconds = talk.elapsedMs / 1_000
+                    Text(
+                        stringResource(R.string.radio_ptt_elapsed, seconds / SECONDS_PER_MINUTE, seconds % SECONDS_PER_MINUTE),
+                        style = MaterialTheme.typography.labelMedium,
+                    )
+                }
             }
         }
     }
+}
 
-/** Held, it records; let go, it sends; a gesture the system cancels drops the burst. TalkBack gets both as actions. */
+/**
+ * Hold to record, release to send; a cancelled gesture discards its burst. While a burst
+ * is sending, a peer is speaking, or no route exists, the control will NOT start another.
+ * Using pointerInput(Unit) is intentional: recomposition from Idle -> Recording must NOT
+ * cancel the in-progress press. UpdatedState supplies the latest canStart at press time.
+ */
 @Composable
 private fun TalkButton(
-    recording: Boolean,
+    ptt: RadioPttState,
     onTalk: () -> Unit,
     onTalkSend: () -> Unit,
     onTalkCancel: () -> Unit,
@@ -970,28 +1019,44 @@ private fun TalkButton(
     val talk by rememberUpdatedState(onTalk)
     val send by rememberUpdatedState(onTalkSend)
     val cancel by rememberUpdatedState(onTalkCancel)
+    val canStart by rememberUpdatedState(ptt.canStart)
+    val recording = ptt.mode == RadioPttMode.RECORDING
+    val label = when {
+        recording -> stringResource(R.string.radio_ptt_release_to_send)
+        ptt.canStart -> stringResource(R.string.radio_ptt_hold_to_talk)
+        else -> stringResource(R.string.radio_ptt_please_wait)
+    }
+    val startLabel = stringResource(R.string.radio_ptt_a11y_start)
+    val stopLabel = stringResource(R.string.radio_ptt_a11y_stop)
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Surface(
             shape = CircleShape,
-            // Never the hang-up's red: green as the answer button, brighter while it records.
-            color = if (recording) TalkingGreen else AnswerGreen,
-            contentColor = Color.White,
+            color = when {
+                recording -> TalkingGreen
+                ptt.canStart -> AnswerGreen
+                else -> MaterialTheme.colorScheme.surfaceVariant
+            },
+            contentColor = if (recording || ptt.canStart) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
             modifier =
                 Modifier
                     .size(TalkSize)
                     .semantics {
-                        contentDescription = "Hold to talk"
-                        customActions =
-                            listOf(
-                                CustomAccessibilityAction("Start talking") { true.also { talk() } },
-                                CustomAccessibilityAction("Stop and send") { true.also { send() } },
-                            )
+                        testTag = "radio_ptt_button"
+                        contentDescription = label
+                        stateDescription = label
+                        customActions = when {
+                            recording -> listOf(CustomAccessibilityAction(stopLabel) { true.also { send() } })
+                            ptt.canStart -> listOf(CustomAccessibilityAction(startLabel) { true.also { talk() } })
+                            else -> emptyList()
+                        }
                     }.pointerInput(Unit) {
                         detectTapGestures(
                             onPress = {
-                                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                                talk()
-                                if (tryAwaitRelease()) send() else cancel()
+                                if (canStart) {
+                                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    talk()
+                                    if (tryAwaitRelease()) send() else cancel()
+                                }
                             },
                         )
                     },
@@ -1000,7 +1065,7 @@ private fun TalkButton(
                 Icon(Icons.Filled.Mic, contentDescription = null, modifier = Modifier.size(48.dp))
             }
         }
-        ButtonLabel(if (recording) "Release to send" else "Hold to talk")
+        ButtonLabel(label)
     }
 }
 

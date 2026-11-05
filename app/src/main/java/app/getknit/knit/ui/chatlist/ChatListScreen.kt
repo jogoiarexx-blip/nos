@@ -41,6 +41,7 @@ import androidx.compose.material.icons.filled.MarkChatUnread
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.NetworkCheck
 import androidx.compose.material.icons.filled.PersonAdd
+import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
@@ -55,6 +56,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -135,6 +138,7 @@ fun ChatListScreen(
     onOpenAddContact: () -> Unit,
     onOpenWhatsNew: () -> Unit = {},
     viewModel: ChatListViewModel = koinViewModel(),
+    onOpenRadioHub: () -> Unit = {},
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val whatsNew by viewModel.whatsNew.collectAsStateWithLifecycle()
@@ -158,6 +162,7 @@ fun ChatListScreen(
         onNewMessage = onNewMessage,
         onOpenSettings = onOpenSettings,
         onOpenYourMesh = onOpenYourMesh,
+        onOpenRadioHub = onOpenRadioHub,
         onOpenDiagnostics = onOpenDiagnostics,
         onOpenMessageRequests = onOpenMessageRequests,
         onOpenDonate = onOpenDonate,
@@ -259,10 +264,25 @@ internal fun ChatListScreenContent(
     whatsNew: WhatsNewEntry? = null,
     onOpenWhatsNew: () -> Unit = {},
     onDismissWhatsNew: () -> Unit = {},
+    onOpenRadioHub: () -> Unit = {},
 ) {
     var menuOpen by remember { mutableStateOf(false) }
 
     Scaffold(
+        bottomBar = {
+            NavigationBar {
+                NavigationBarItem(
+                    selected = true, onClick = {},
+                    icon = { Icon(Icons.AutoMirrored.Filled.Message, contentDescription = null) },
+                    label = { Text(stringResource(R.string.nos_tab_messages)) },
+                )
+                NavigationBarItem(
+                    selected = false, onClick = onOpenRadioHub,
+                    icon = { Icon(Icons.Filled.Mic, contentDescription = null) },
+                    label = { Text(stringResource(R.string.nos_tab_radio)) },
+                )
+            }
+        },
         topBar = {
             TopAppBar(
                 title = {
@@ -296,6 +316,12 @@ internal fun ChatListScreenContent(
                     }
                 },
                 actions = {
+                    IconButton(
+                        onClick = onOpenRadioHub,
+                        modifier = Modifier.size(48.dp).semantics { testTag = "chatlist_radio_hub" },
+                    ) {
+                        Icon(Icons.Filled.Mic, contentDescription = stringResource(R.string.radio_hub_open))
+                    }
                     IconButton(onClick = onSearch, modifier = Modifier.size(48.dp).semantics { testTag = "chatlist_search" }) {
                         Icon(Icons.Filled.Search, contentDescription = stringResource(R.string.search_title))
                     }
@@ -333,6 +359,14 @@ internal fun ChatListScreenContent(
                             expanded = menuOpen,
                             onDismissRequest = { menuOpen = false },
                         ) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.radio_hub_open)) },
+                                leadingIcon = { Icon(Icons.Filled.Mic, contentDescription = null) },
+                                onClick = {
+                                    menuOpen = false
+                                    onOpenRadioHub()
+                                },
+                            )
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.settings_title)) },
                                 leadingIcon = { Icon(Icons.Filled.Settings, contentDescription = null) },
